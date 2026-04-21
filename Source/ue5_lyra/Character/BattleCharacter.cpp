@@ -7,14 +7,29 @@
 #include "Camera/CameraComponent.h"
 // 角色移动组件
 #include "GameFramework/CharacterMovementComponent.h"
+// 输入映射
+#include "InputMappingContext.h"
+// 输入动作
+#include "InputAction.h"
 // 增强输入组件
 #include "EnhancedInputComponent.h"
 // 增强输入子系统
-#include "EnhancedInputSubSystem.h"
+#include "EnhancedInputSubsystems.h"
+
 
 ABattleCharacter::ABattleCharacter()
 {
     PrimaryActorTick.bCanEverTick = true;
+
+    // 绑定骨骼网格体（人物模型）
+    static ConstructorHelpers::FObjectFinder<USkeletalMesh> MeshAsset(
+        TEXT("/Game/Characters/Mannequins/Meshes/SKM_Manny.SKM_Manny"));
+    if (MeshAsset.Succeeded())
+    {
+        GetMesh()->SetSkeletalMesh(MeshAsset.Object); // 设置骨骼网格体
+        GetMesh()->SetRelativeLocation(FVector(0.0f, 0.0f, -90.0f));  // 调整位置，让模型脚踩地面
+        GetMesh()->SetRelativeRotation(FRotator(0.0f, -90.0f, 0.0f)); // 调整旋转，让模型面朝前方
+    }
 
     // 创建弹簧臂组件
     SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
@@ -36,6 +51,30 @@ ABattleCharacter::ABattleCharacter()
     bUseControllerRotationYaw = false;
     bUseControllerRotationPitch = false;
     bUseControllerRotationRoll = false;
+
+    // 加载输入映射上下文
+    static ConstructorHelpers::FObjectFinder<UInputMappingContext> IMC_Finder(
+        TEXT("/Game/MyResource/Input/IMC_Default.IMC_Default"));
+    if (IMC_Finder.Succeeded())
+    {
+        DefaultMappingContext = IMC_Finder.Object;
+    }
+
+    // 加载移动输入动作
+    static ConstructorHelpers::FObjectFinder<UInputAction> MoveAction_Finder(
+        TEXT("/Game/MyResource/Input/IA_Move.IA_Move"));
+    if (MoveAction_Finder.Succeeded())
+    {
+        MoveAction = MoveAction_Finder.Object;
+    }
+
+    // 加载视角输入动作
+    static ConstructorHelpers::FObjectFinder<UInputAction> LookAction_Finder(
+        TEXT("/Game/MyResource/Input/IA_Look.IA_Look"));
+    if (LookAction_Finder.Succeeded())
+    {
+        LookAction = LookAction_Finder.Object;
+    } 
 }
 
 // 角色开始游戏

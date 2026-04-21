@@ -38,15 +38,15 @@ protected:
     TObjectPtr<UCameraComponent> FollowCamera;
 
     // 输入映射
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Input")
     TObjectPtr<UInputMappingContext> DefaultMappingContext;
 
     // 输入动作
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Input")
     TObjectPtr<UInputAction> MoveAction;
 
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-    TObjectPtr<UInputAction> LookAction;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Input")
+    TObjectPtr<UInputAction> LookAction; 
 
     // 输入回调
     void Move(const FInputActionValue& Value);
