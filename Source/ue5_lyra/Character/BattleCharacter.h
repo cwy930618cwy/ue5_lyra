@@ -13,6 +13,8 @@ class UCameraComponent;
 class UInputMappingContext;
 // 输入动作
 class UInputAction;
+// 自定义输入组件
+class UBattleCharacterMovementComponent;
 
 // 输入动作值
 struct FInputActionValue;
@@ -23,7 +25,7 @@ class UE5_LYRA_API ABattleCharacter : public ACharacter
     GENERATED_BODY()
     
 public:
-    ABattleCharacter();
+    ABattleCharacter(const FObjectInitializer& ObjectInitializer);  // 构造函数
 protected:
     virtual void BeginPlay() override;
     // 设置玩家输入组件
@@ -48,7 +50,21 @@ protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Input")
     TObjectPtr<UInputAction> LookAction; 
 
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Input")
+    TObjectPtr<UInputAction> JumpAction;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Input")
+    TObjectPtr<UInputAction> SprintAction;
+
+    // 自定义移动组件指针（方便直接调用冲刺方法）
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+    TObjectPtr<UBattleCharacterMovementComponent> BattleMovement; 
+
     // 输入回调
     void Move(const FInputActionValue& Value);
     void Look(const FInputActionValue& Value);
+    void StartJump();
+    void StopJump();
+    void StartSprint();
+    void StopSprint();
 };

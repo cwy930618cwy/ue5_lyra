@@ -15,15 +15,18 @@
 #include "EnhancedInputComponent.h"
 // 增强输入子系统
 #include "EnhancedInputSubsystems.h"
+// 自定义移动组件
+#include "Movement/BattleCharacterMovementComponent.h"
 
-
-ABattleCharacter::ABattleCharacter()
+ABattleCharacter::ABattleCharacter(const FObjectInitializer& ObjectInitializer)
+    : Super(ObjectInitializer.SetDefaultSubobjectClass<UBattleCharacterMovementComponent>(
+        ACharacter::CharacterMovementComponentName))
 {
     PrimaryActorTick.bCanEverTick = true;
 
     // 绑定骨骼网格体（人物模型）
     static ConstructorHelpers::FObjectFinder<USkeletalMesh> MeshAsset(
-        TEXT("/Game/Characters/Mannequins/Meshes/SKM_Manny.SKM_Manny"));
+        TEXT("/Game/MyResource/Meshes/SKM_Manny.SKM_Manny"));
     if (MeshAsset.Succeeded())
     {
         GetMesh()->SetSkeletalMesh(MeshAsset.Object); // 设置骨骼网格体
@@ -45,7 +48,6 @@ ABattleCharacter::ABattleCharacter()
     // 创建角色移动组件
     GetCharacterMovement()->bOrientRotationToMovement = true; // 角色朝移动方向转身
     GetCharacterMovement()->RotationRate = FRotator(0.0f, 500.0f, 0.0f); // 旋转速度
-    GetCharacterMovement()->MaxWalkSpeed = 500.0f; // 最大行走速度
 
     // 不让控制器旋转角色（由移动组件来控制）
     bUseControllerRotationYaw = false;
@@ -75,6 +77,25 @@ ABattleCharacter::ABattleCharacter()
     {
         LookAction = LookAction_Finder.Object;
     } 
+
+    // 加载跳跃输入动作
+    static ConstructorHelpers::FObjectFinder<UInputAction> JumpAction_Finder(
+        TEXT("/Game/MyResource/Input/IA_Jump.IA_Jump"));
+    if (JumpAction_Finder.Succeeded())
+    {
+        JumpAction = JumpAction_Finder.Object;
+    }
+
+    // 加载冲刺输入动作
+    static ConstructorHelpers::FObjectFinder<UInputAction> SprintAction_Finder(
+        TEXT("/Game/MyResource/Input/IA_Sprint.IA_Sprint"));
+    if (SprintAction_Finder.Succeeded())
+    {
+        SprintAction = SprintAction_Finder.Object;
+    }
+
+    // 获取自定义移动组件指针
+    BattleMovement = Cast<UBattleCharacterMovementComponent>(GetCharacterMovement()); 
 }
 
 // 角色开始游戏
@@ -101,6 +122,10 @@ void ABattleCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
         // 绑定输入动作
         EnhancedInput->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ABattleCharacter::Move);
         EnhancedInput->BindAction(LookAction, ETriggerEvent::Triggered, this, &ABattleCharacter::Look);
+        EnhancedInput->BindAction(JumpAction, ETriggerEvent::Started, this, &ABattleCharacter::StartJump);
+        EnhancedInput->BindAction(JumpAction, ETriggerEvent::Completed, this, &ABattleCharacter::StopJump);
+        EnhancedInput->BindAction(SprintAction, ETriggerEvent::Triggered, this, &ABattleCharacter::StartSprint);
+        EnhancedInput->BindAction(SprintAction, ETriggerEvent::Completed, this, &ABattleCharacter::StopSprint);
     }
 }
 
@@ -132,3 +157,33 @@ void ABattleCharacter::Look(const FInputActionValue& Value)
     AddControllerYawInput(LookVector.X);
     AddControllerPitchInput(LookVector.Y);
 }
+
+// 开始跳跃
+void ABattleCharacter::StartJump()
+{
+    Jump();
+}
+
+// 停止跳跃
+void ABattleCharacter::StopJump()
+{
+    StopJumping();
+}
+
+// 开始冲刺
+void ABattleCharacter::StartSprint()
+{
+    if (BattleMovement)
+    {
+        BattleMovement->StartSprint();
+    }
+}
+
+// 停止冲刺
+void ABattleCharacter::StopSprint()
+{
+    if (BattleMovement)
+    {
+        BattleMovement->StopSprint();
+    }
+} 
