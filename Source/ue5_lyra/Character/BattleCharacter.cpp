@@ -94,6 +94,19 @@ ABattleCharacter::ABattleCharacter(const FObjectInitializer& ObjectInitializer)
         SprintAction = SprintAction_Finder.Object;
     }
 
+    // 加载动画蓝图类（AnimBlueprint 需要用 _C 后缀加载 GeneratedClass）
+    static ConstructorHelpers::FObjectFinder<UClass> ABP_Finder(
+        TEXT("/Game/MyResource/Animations/BP_BattleAnimInstance.BP_BattleAnimInstance_C"));
+    if (ABP_Finder.Succeeded())
+    {
+        GetMesh()->SetAnimInstanceClass(ABP_Finder.Object);
+        UE_LOG(LogTemp, Warning, TEXT("[构造] 动画蓝图加载成功: %s"), *ABP_Finder.Object->GetName());
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("[构造] 动画蓝图加载失败！路径: /Game/MyResource/Animations/BP_BattleAnimInstance"));
+    }
+
     // 获取自定义移动组件指针
     BattleMovement = Cast<UBattleCharacterMovementComponent>(GetCharacterMovement()); 
 }
@@ -102,6 +115,31 @@ ABattleCharacter::ABattleCharacter(const FObjectInitializer& ObjectInitializer)
 void ABattleCharacter::BeginPlay()
 {
     Super::BeginPlay();
+
+    // ===== 调试打印：检查动画系统 ===== //
+    UE_LOG(LogTemp, Warning, TEXT("===== [BattleCharacter] BeginPlay 开始调试 ====="));
+    
+    // 检查 Mesh 组件
+    if (GetMesh())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[调试] Mesh 组件存在 ✓"));
+        UE_LOG(LogTemp, Warning, TEXT("[调试] SkeletalMesh = %s"), 
+            GetMesh()->GetSkeletalMeshAsset() ? *GetMesh()->GetSkeletalMeshAsset()->GetName() : TEXT("NULL！没有骨骼网格体"));
+        UE_LOG(LogTemp, Warning, TEXT("[调试] AnimClass = %s"), 
+            GetMesh()->GetAnimClass() ? *GetMesh()->GetAnimClass()->GetName() : TEXT("NULL！没有动画蓝图类"));
+        UE_LOG(LogTemp, Warning, TEXT("[调试] AnimInstance = %s"), 
+            GetMesh()->GetAnimInstance() ? *GetMesh()->GetAnimInstance()->GetClass()->GetName() : TEXT("NULL！没有动画实例"));
+        UE_LOG(LogTemp, Warning, TEXT("[调试] Mesh 可见性 = %s"), 
+            GetMesh()->IsVisible() ? TEXT("可见") : TEXT("不可见"));
+        UE_LOG(LogTemp, Warning, TEXT("[调试] Mesh AnimationMode = %d"), 
+            (int32)GetMesh()->GetAnimationMode());
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("[调试] Mesh 组件不存在！！！"));
+    }
+    
+    UE_LOG(LogTemp, Warning, TEXT("===== [BattleCharacter] 调试结束 ====="));
 
     // 注册输入映射上下文（Enhanced Input）
 	if (APlayerController* PC = Cast<APlayerController>(Controller))
