@@ -17,6 +17,8 @@
 #include "EnhancedInputSubsystems.h"
 // 自定义移动组件
 #include "Movement/BattleCharacterMovementComponent.h"
+// 动画蒙太奇
+#include "Animation/AnimMontage.h"
 
 ABattleCharacter::ABattleCharacter(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer.SetDefaultSubobjectClass<UBattleCharacterMovementComponent>(
@@ -94,6 +96,27 @@ ABattleCharacter::ABattleCharacter(const FObjectInitializer& ObjectInitializer)
         SprintAction = SprintAction_Finder.Object;
     }
 
+    // 加载攻击输入动作
+    static ConstructorHelpers::FObjectFinder<UInputAction> AttackAction_Finder(
+        TEXT("/Game/MyResource/Input/IA_Attack.IA_Attack"));
+    if (AttackAction_Finder.Succeeded())
+    {
+        AttackAction = AttackAction_Finder.Object;
+    }
+
+    // 加载攻击动画蒙太奇
+    static ConstructorHelpers::FObjectFinder<UAnimMontage> AttackMontage_Finder(
+        TEXT("/Game/MyResource/Animations/Manny/AM_Melee_Attack.AM_Melee_Attack"));
+    if (AttackMontage_Finder.Succeeded())
+    {
+        AttackMontage = AttackMontage_Finder.Object;
+        UE_LOG(LogTemp, Warning, TEXT("[构造] 攻击蒙太奇加载成功"));
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("[构造] 攻击蒙太奇加载失败！请检查路径"));
+    }
+
     // 加载动画蓝图类（AnimBlueprint 需要用 _C 后缀加载 GeneratedClass）
     static ConstructorHelpers::FObjectFinder<UClass> ABP_Finder(
         TEXT("/Game/MyResource/Animations/BP_BattleAnimInstance.BP_BattleAnimInstance_C"));
@@ -164,6 +187,7 @@ void ABattleCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
         EnhancedInput->BindAction(JumpAction, ETriggerEvent::Completed, this, &ABattleCharacter::StopJump);
         EnhancedInput->BindAction(SprintAction, ETriggerEvent::Triggered, this, &ABattleCharacter::StartSprint);
         EnhancedInput->BindAction(SprintAction, ETriggerEvent::Completed, this, &ABattleCharacter::StopSprint);
+        EnhancedInput->BindAction(AttackAction, ETriggerEvent::Started, this, &ABattleCharacter::Attack);
     }
 }
 
@@ -224,4 +248,44 @@ void ABattleCharacter::StopSprint()
     {
         BattleMovement->StopSprint();
     }
-} 
+}
+
+// 攻击
+void ABattleCharacter::Attack()
+{
+    // 如果正在攻击或没有蒙太奇，直接返回
+    if (bIsAttacking || !AttackMontage) return;
+
+    // 获取动画实例
+    UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+    if (!AnimInstance) return;
+
+    // 标记正在攻击
+    bIsAttacking = true;
+
+    // 播放攻击蒙太奇
+    float Duration = AnimInstance->Montage_Play(AttackMontage, 1.0f);
+    
+    if (Duration > 0.0f)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[攻击] 播放攻击蒙太奇，时长: %.2f 秒"), Duration);
+
+        // 绑定蒙太奇结束回调
+        FOnMontageEnded EndDelegate;
+        EndDelegate.BindUObject(this, &ABattleCharacter::OnAttackMontageEnded);
+        AnimInstance->Montage_SetEndDelegate(EndDelegate, AttackMontage);
+    }
+    else
+    {
+        // 播放失败，重置状态
+        bIsAttacking = false;
+        UE_LOG(LogTemp, Error, TEXT("[攻击] 蒙太奇播放失败！"));
+    }
+}
+
+// 攻击蒙太奇播放结束回调
+void ABattleCharacter::OnAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+    bIsAttacking = false;
+    UE_LOG(LogTemp, Warning, TEXT("[攻击] 蒙太奇结束，bInterrupted=%d"), bInterrupted);
+}
