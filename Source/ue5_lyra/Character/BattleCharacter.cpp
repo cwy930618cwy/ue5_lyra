@@ -19,6 +19,16 @@
 #include "Movement/BattleCharacterMovementComponent.h"
 // 动画蒙太奇
 #include "Animation/AnimMontage.h"
+// ASC 完整定义
+#include "AbilitySystemComponent.h"
+// HealthSet 完整定义 
+#include "Attributes/HealthSet/HealthSet.h"
+// UGameplayEffect 基类定义
+#include "GameplayEffect.h"
+// FClassFinder / FObjectFinder 工具
+#include "UObject/ConstructorHelpers.h"
+// GAS 蓝图函数库（AssignTagSetByCallerMagnitude 在这里）
+#include "AbilitySystemBlueprintLibrary.h" 
 
 ABattleCharacter::ABattleCharacter(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer.SetDefaultSubobjectClass<UBattleCharacterMovementComponent>(
@@ -110,11 +120,6 @@ ABattleCharacter::ABattleCharacter(const FObjectInitializer& ObjectInitializer)
     if (AttackMontage_Finder.Succeeded())
     {
         AttackMontage = AttackMontage_Finder.Object;
-        UE_LOG(LogTemp, Warning, TEXT("[构造] 攻击蒙太奇加载成功"));
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("[构造] 攻击蒙太奇加载失败！请检查路径"));
     }
 
     // 加载动画蓝图类（AnimBlueprint 需要用 _C 后缀加载 GeneratedClass）
@@ -123,46 +128,66 @@ ABattleCharacter::ABattleCharacter(const FObjectInitializer& ObjectInitializer)
     if (ABP_Finder.Succeeded())
     {
         GetMesh()->SetAnimInstanceClass(ABP_Finder.Object);
-        UE_LOG(LogTemp, Warning, TEXT("[构造] 动画蓝图加载成功: %s"), *ABP_Finder.Object->GetName());
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("[构造] 动画蓝图加载失败！路径: /Game/MyResource/Animations/BP_BattleAnimInstance"));
     }
 
     // 获取自定义移动组件指针
     BattleMovement = Cast<UBattleCharacterMovementComponent>(GetCharacterMovement()); 
+
+    // GAS 能力系统组件
+    // 创建 ASC 组件
+    AbilitySystemComponent = CreateDefaultSubobject<UAbilitySystemComponent>(TEXT("AbilitySystemComponent"));
+    // 设置复制模型
+    AbilitySystemComponent->SetIsReplicated(true);
+    AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Mixed);
+
+    // 创建 HealthSet（属性集"挂"在 ASC 上）
+    HealthSet = CreateDefaultSubobject<UHealthSet>(TEXT("HealthSet")); 
+
+    // 加载测试扣血输入动作
+    static ConstructorHelpers::FObjectFinder<UInputAction> TestTakeDamageAction_Finder(
+        TEXT("/Game/MyResource/Input/IA_TestDamage.IA_TestDamage"));
+    if (TestTakeDamageAction_Finder.Succeeded())
+    {
+        TestTakeDamageAction = TestTakeDamageAction_Finder.Object;
+    } 
+
+    // 加载测试加血输入动作
+    static ConstructorHelpers::FObjectFinder<UInputAction> TestHealAction_Finder(
+        TEXT("/Game/MyResource/Input/IA_TestHeal.IA_TestHeal"));
+    if (TestHealAction_Finder.Succeeded())
+    {
+        TestHealAction = TestHealAction_Finder.Object;
+    }
+
+    // 加载伤害 GE 蓝图类
+    static ConstructorHelpers::FClassFinder<UGameplayEffect> DamageEffectFinder(
+        TEXT("/Game/MyResource/GameplayEffects/GE_Damage"));
+    if (DamageEffectFinder.Succeeded())
+    {
+        DamageEffectClass = DamageEffectFinder.Class;
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("[BattleCharacter] 加载 GE_Damage 失败！请检查路径：/Game/MyResource/GameplayEffects/GE_Damage"));
+    }
+
+    // 加载治疗 GE 蓝图类
+    static ConstructorHelpers::FClassFinder<UGameplayEffect> HealEffectFinder(
+        TEXT("/Game/MyResource/GameplayEffects/GE_Heal"));
+    if (HealEffectFinder.Succeeded())
+    {
+        HealEffectClass = HealEffectFinder.Class;
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("[BattleCharacter] 加载 GE_Heal 失败！请检查路径：/Game/MyResource/GameplayEffects/GE_Heal"));
+    }
 }
 
 // 角色开始游戏
 void ABattleCharacter::BeginPlay()
 {
     Super::BeginPlay();
-
-    // ===== 调试打印：检查动画系统 ===== //
-    UE_LOG(LogTemp, Warning, TEXT("===== [BattleCharacter] BeginPlay 开始调试 ====="));
-    
-    // 检查 Mesh 组件
-    if (GetMesh())
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[调试] Mesh 组件存在 ✓"));
-        UE_LOG(LogTemp, Warning, TEXT("[调试] SkeletalMesh = %s"), 
-            GetMesh()->GetSkeletalMeshAsset() ? *GetMesh()->GetSkeletalMeshAsset()->GetName() : TEXT("NULL！没有骨骼网格体"));
-        UE_LOG(LogTemp, Warning, TEXT("[调试] AnimClass = %s"), 
-            GetMesh()->GetAnimClass() ? *GetMesh()->GetAnimClass()->GetName() : TEXT("NULL！没有动画蓝图类"));
-        UE_LOG(LogTemp, Warning, TEXT("[调试] AnimInstance = %s"), 
-            GetMesh()->GetAnimInstance() ? *GetMesh()->GetAnimInstance()->GetClass()->GetName() : TEXT("NULL！没有动画实例"));
-        UE_LOG(LogTemp, Warning, TEXT("[调试] Mesh 可见性 = %s"), 
-            GetMesh()->IsVisible() ? TEXT("可见") : TEXT("不可见"));
-        UE_LOG(LogTemp, Warning, TEXT("[调试] Mesh AnimationMode = %d"), 
-            (int32)GetMesh()->GetAnimationMode());
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("[调试] Mesh 组件不存在！！！"));
-    }
-    
-    UE_LOG(LogTemp, Warning, TEXT("===== [BattleCharacter] 调试结束 ====="));
 
     // 注册输入映射上下文（Enhanced Input）
 	if (APlayerController* PC = Cast<APlayerController>(Controller))
@@ -171,6 +196,15 @@ void ABattleCharacter::BeginPlay()
         {
             Subsystem->AddMappingContext(DefaultMappingContext, 0);
         }
+    }
+
+    // ===== 初始化血量 ===== //
+    if (AbilitySystemComponent && HealthSet)
+    {
+        // 初始化最大血量（先设上限）
+        HealthSet->InitMaxHealth(100.0f);
+        // 初始化当前血量
+        HealthSet->InitHealth(100.0f);
     }
 }
 
@@ -188,6 +222,12 @@ void ABattleCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
         EnhancedInput->BindAction(SprintAction, ETriggerEvent::Triggered, this, &ABattleCharacter::StartSprint);
         EnhancedInput->BindAction(SprintAction, ETriggerEvent::Completed, this, &ABattleCharacter::StopSprint);
         EnhancedInput->BindAction(AttackAction, ETriggerEvent::Started, this, &ABattleCharacter::Attack);
+
+        // 绑定测试扣血输入动作（H键）
+        EnhancedInput->BindAction(TestTakeDamageAction, ETriggerEvent::Started, this, &ABattleCharacter::TestTakeDamage);
+
+        // 绑定测试加血输入动作（J键）
+        EnhancedInput->BindAction(TestHealAction, ETriggerEvent::Started, this, &ABattleCharacter::TestHeal);
     }
 }
 
@@ -268,8 +308,6 @@ void ABattleCharacter::Attack()
     
     if (Duration > 0.0f)
     {
-        UE_LOG(LogTemp, Warning, TEXT("[攻击] 播放攻击蒙太奇，时长: %.2f 秒"), Duration);
-
         // 绑定蒙太奇结束回调
         FOnMontageEnded EndDelegate;
         EndDelegate.BindUObject(this, &ABattleCharacter::OnAttackMontageEnded);
@@ -279,7 +317,6 @@ void ABattleCharacter::Attack()
     {
         // 播放失败，重置状态
         bIsAttacking = false;
-        UE_LOG(LogTemp, Error, TEXT("[攻击] 蒙太奇播放失败！"));
     }
 }
 
@@ -287,5 +324,86 @@ void ABattleCharacter::Attack()
 void ABattleCharacter::OnAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
     bIsAttacking = false;
-    UE_LOG(LogTemp, Warning, TEXT("[攻击] 蒙太奇结束，bInterrupted=%d"), bInterrupted);
+}
+
+// 获取 ASC（其他类（比如敌人）要攻击本角色时需要拿到它） 
+UAbilitySystemComponent* ABattleCharacter::GetAbilitySystemComponent() const
+{
+    return AbilitySystemComponent;
+}
+
+// 扣血（通过 GE 流程，而不是直改属性）
+void ABattleCharacter::TakeDamage(float Amount)
+{
+    // 安全检查：ASC / HealthSet / GE 类三者缺一不可
+    if (!AbilitySystemComponent || !HealthSet || !DamageEffectClass) return;
+
+    // 1. 创建 GE 的 Spec (处方)： 指定用哪张GE，谁施加的（自己），以及效果强度（伤害数值）
+    FGameplayEffectSpecHandle SpecHandle = AbilitySystemComponent->MakeOutgoingSpec(
+        DamageEffectClass, // GE 类
+        1.0f, // 等级
+        AbilitySystemComponent->MakeEffectContext() // 上下文
+    );
+
+    // Spec 创建失败就退出
+    if (!SpecHandle.IsValid()) return;
+
+    // 2.在处方上填入具体的扣血数值 （Data.Damage Tag 对应 GE 里的 SetByCaller）
+    UAbilitySystemBlueprintLibrary::AssignTagSetByCallerMagnitude(
+        SpecHandle,  // Spec
+        FGameplayTag::RequestGameplayTag(FName("Data.Damage")), // Tag 名称要和 GE 里一致
+        -Amount // 取反：外部传正数伤害量，这里转成负数给 GE（因为 GE 是 Add 操作）
+    );
+
+    // 3.把处方应用到自己身上 （触发完整 GE 流程）
+    AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+
+    // 打印
+    const float Current = HealthSet->GetHealth();
+    const float Max     = HealthSet->GetMaxHealth();
+    UE_LOG(LogTemp, Warning, TEXT("[扣血] -%.1f → 当前：%.1f / %.1f"), Amount, Current, Max);
+}
+
+// 加血
+void ABattleCharacter::Heal(float Amount)
+{
+    // 安全检查：ASC / HealthSet / GE 类三者缺一不可
+    if (!AbilitySystemComponent || !HealthSet || !HealEffectClass) return;
+
+    // 1. 创建 GE 的 Spec (处方)： 指定用哪张GE，谁施加的（自己），以及效果强度（治疗数值）
+    FGameplayEffectSpecHandle SpecHandle = AbilitySystemComponent->MakeOutgoingSpec(
+        HealEffectClass, // GE 类
+        1.0f, // 等级
+        AbilitySystemComponent->MakeEffectContext() // 上下文
+    );
+
+    // Spec 创建失败就退出
+    if (!SpecHandle.IsValid()) return;
+
+    // 2.在处方上填入具体的治疗数值 （Data.Heal Tag 对应 GE 里的 SetByCaller）
+    UAbilitySystemBlueprintLibrary::AssignTagSetByCallerMagnitude(
+        SpecHandle,  // Spec
+        FGameplayTag::RequestGameplayTag(FName("Data.Heal")), // Tag 名称要和 GE 里一致
+        Amount // 治疗数值
+    );
+
+    // 3.把处方应用到自己身上 （触发完整 GE 流程）
+    AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+
+    // 打印
+    const float Current = HealthSet->GetHealth();
+    const float Max     = HealthSet->GetMaxHealth();
+    UE_LOG(LogTemp, Warning, TEXT("[加血] +%.1f → 当前：%.1f / %.1f"), Amount, Current, Max);
+}
+
+// 测试扣血
+void ABattleCharacter::TestTakeDamage()
+{
+    TakeDamage(10.0f);
+}
+
+// 测试加血
+void ABattleCharacter::TestHeal()
+{
+    Heal(10.0f);
 }

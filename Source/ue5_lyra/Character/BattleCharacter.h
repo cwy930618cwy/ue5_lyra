@@ -17,6 +17,13 @@ class UInputAction;
 class UBattleCharacterMovementComponent;
 // 动画蒙太奇
 class UAnimMontage;
+// GAS 能力系统组件
+class UAbilitySystemComponent;
+// 血量属性集
+class UHealthSet;
+// 游戏性效果
+class UGameplayEffect;
+
 
 // 输入动作值
 struct FInputActionValue;
@@ -28,6 +35,18 @@ class UE5_LYRA_API ABattleCharacter : public ACharacter
     
 public:
     ABattleCharacter(const FObjectInitializer& ObjectInitializer);  // 构造函数
+
+    // 获取 ASC（其他类（比如敌人）要攻击本角色时需要拿到它）
+    UAbilitySystemComponent* GetAbilitySystemComponent() const;
+
+     // 🆕 扣血（Amount 为正数，表示扣多少血）
+    UFUNCTION(BlueprintCallable, Category = "Health")
+    void TakeDamage(float Amount);
+
+    // 🆕 加血（Amount 为正数，表示加多少血）
+    UFUNCTION(BlueprintCallable, Category = "Health")
+    void Heal(float Amount); 
+
 protected:
     virtual void BeginPlay() override;
     // 设置玩家输入组件
@@ -74,6 +93,30 @@ protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     TObjectPtr<UBattleCharacterMovementComponent> BattleMovement; 
 
+    // GAS 能力系统组件（管技能 + 属性）
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GAS")
+    TObjectPtr<UAbilitySystemComponent> AbilitySystemComponent;
+
+    // 血量属性集
+    UPROPERTY()
+    TObjectPtr<UHealthSet> HealthSet;
+
+    // 测试扣血输入动作（H键）
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Input")
+    TObjectPtr<UInputAction> TestTakeDamageAction;
+
+    // 测试加血输入动作（J键）
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Input")
+    TObjectPtr<UInputAction> TestHealAction; 
+
+    // 伤害 GE 模板类 （指向 GE_Damage 蓝图类，不是实例）
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Effects")
+    TSubclassOf<UGameplayEffect> DamageEffectClass;
+
+    // 治疗 GE 模板类 （指向 GE_Heal 蓝图类，不是实例）
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Effects")
+    TSubclassOf<UGameplayEffect> HealEffectClass;
+
     // 输入回调
     void Move(const FInputActionValue& Value);
     void Look(const FInputActionValue& Value);
@@ -82,6 +125,8 @@ protected:
     void StartSprint();
     void StopSprint();
     void Attack();
+    void TestTakeDamage();
+    void TestHeal();
 
     // 蒙太奇播放结束回调
     UFUNCTION()
