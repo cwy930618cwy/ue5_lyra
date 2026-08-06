@@ -29,4 +29,7 @@ public:
     UPROPERTY(BlueprintReadOnly, Category = "Health")
     FGameplayAttributeData MaxHealth;
     ATTRIBUTE_ACCESSORS(UHealthSet, MaxHealth)
+
+    // 属性即将变化时调用，用于把属性钳制在合理范围内
+    virtual void PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue) override;
 };
