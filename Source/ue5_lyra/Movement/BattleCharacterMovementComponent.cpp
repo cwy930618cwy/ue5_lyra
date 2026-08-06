@@ -37,17 +37,32 @@ void UBattleCharacterMovementComponent::StopSprint()
 }
 
 // 每帧更新，检查冲刺状态
-void UBattleCharacterMovementComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+void UBattleCharacterMovementComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction)
 {
     Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-    // 判断是否真的在冲刺：想冲刺 + 在地面 + 有速度（在移动）
-    const bool bCanSprint = bWantsToSprint && IsMovingOnGround() && Velocity.Size2D() > 10.0f;
+    // 是否在地面上
+    const bool bOnGround = IsMovingOnGround();
+
+    // 维护 “离开地面后的冲刺保留计时”
+    if (bOnGround)
+    {
+        AirTimeAccumulator  = 0.0f;
+    }
+    else
+    {
+        AirTimeAccumulator += DeltaTime;
+    }
+
+    // 冲刺有效条件：想冲刺 + 有速度，且（在地面 或 离开地面还在保留时间内）
+    const bool bSprintActive = bWantsToSprint && Velocity.Size2D() > 10.0f
+        && (bOnGround || AirTimeAccumulator <= SprintAirTime);
 
     // 只有状态变化时才更新
-    if (bCanSprint != bIsSprinting)
+    if (bSprintActive != bIsSprinting)
     {
-        bIsSprinting = bCanSprint;
+        bIsSprinting = bSprintActive;
         MaxWalkSpeed = bIsSprinting ? SprintSpeed : WalkSpeed;
     }
+
 }
