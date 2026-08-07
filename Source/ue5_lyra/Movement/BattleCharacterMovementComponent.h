@@ -24,8 +24,8 @@ public:
     // 停止冲刺
     void StopSprint();
 
+// 每次更新，检查冲刺状态
 protected:
-    // 每帧更新，检查冲刺状态
     virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 private:
@@ -42,5 +42,12 @@ private:
 
     // 是否正在冲刺
     bool bIsSprinting = false;
+
+    // 离开地面后，冲刺速度还能维持的时长（秒）
+    UPROPERTY(EditAnywhere, Category = "Sprint")
+    float SprintAirTime = 0.5f;
+
+    // 离开地面的计时
+    float AirTimeAccumulator = 0.0f;
 
 };

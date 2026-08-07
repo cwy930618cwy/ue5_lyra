@@ -370,6 +370,10 @@ void ABattleCharacter::Heal(float Amount)
     // 安全检查：ASC / HealthSet / GE 类三者缺一不可
     if (!AbilitySystemComponent || !HealthSet || !HealEffectClass) return;
 
+    // ====== 调试打印：应用前 ======
+    const int32 EffectCountBefore = AbilitySystemComponent->GetActiveEffects().Num();
+    UE_LOG(LogTemp, Warning, TEXT("[加血前] Health=%.1f / %.1f, 活跃效果数=%d"), HealthSet->GetHealth(), HealthSet->GetMaxHealth(), EffectCountBefore);
+
     // 1. 创建 GE 的 Spec (处方)： 指定用哪张GE，谁施加的（自己），以及效果强度（治疗数值）
     FGameplayEffectSpecHandle SpecHandle = AbilitySystemComponent->MakeOutgoingSpec(
         HealEffectClass, // GE 类
@@ -390,10 +394,9 @@ void ABattleCharacter::Heal(float Amount)
     // 3.把处方应用到自己身上 （触发完整 GE 流程）
     AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
 
-    // 打印
-    const float Current = HealthSet->GetHealth();
-    const float Max     = HealthSet->GetMaxHealth();
-    UE_LOG(LogTemp, Warning, TEXT("[加血] +%.1f → 当前：%.1f / %.1f"), Amount, Current, Max);
+    // ====== 调试打印：应用后 ======
+    const int32 EffectCountAfter = AbilitySystemComponent->GetActiveEffects().Num();
+    UE_LOG(LogTemp, Warning, TEXT("[加血后] Health=%.1f / %.1f, 活跃效果数=%d"), HealthSet->GetHealth(), HealthSet->GetMaxHealth(), EffectCountAfter);
 }
 
 // 测试扣血
