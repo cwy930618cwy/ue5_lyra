@@ -39,9 +39,12 @@ public:
     // 获取 ASC（其他类（比如敌人）要攻击本角色时需要拿到它）
     UAbilitySystemComponent* GetAbilitySystemComponent() const;
 
+    // 获取 血量
+    UHealthSet* GetHealthSet() const { return HealthSet; }
+
      // 🆕 扣血（Amount 为正数，表示扣多少血）
     UFUNCTION(BlueprintCallable, Category = "Health")
-    void TakeDamage(float Amount);
+    void ApplyDamage(float Amount);
 
     // 🆕 加血（Amount 为正数，表示加多少血）
     UFUNCTION(BlueprintCallable, Category = "Health")

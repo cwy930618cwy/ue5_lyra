@@ -29,6 +29,10 @@
 #include "UObject/ConstructorHelpers.h"
 // GAS 蓝图函数库（AssignTagSetByCallerMagnitude 在这里）
 #include "AbilitySystemBlueprintLibrary.h" 
+// GAS 效果类型
+#include "GameplayEffectTypes.h"
+// GAS 效果
+ #include "GameplayEffect.h"
 
 ABattleCharacter::ABattleCharacter(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer.SetDefaultSubobjectClass<UBattleCharacterMovementComponent>(
@@ -333,10 +337,13 @@ UAbilitySystemComponent* ABattleCharacter::GetAbilitySystemComponent() const
 }
 
 // 扣血（通过 GE 流程，而不是直改属性）
-void ABattleCharacter::TakeDamage(float Amount)
+void ABattleCharacter::ApplyDamage(float Amount)
 {
     // 安全检查：ASC / HealthSet / GE 类三者缺一不可
     if (!AbilitySystemComponent || !HealthSet || !DamageEffectClass) return;
+
+    // 🆕 血量已经为 0 就不扣了
+    if (HealthSet->GetHealth() <= 0.0f) return;
 
     // 1. 创建 GE 的 Spec (处方)： 指定用哪张GE，谁施加的（自己），以及效果强度（伤害数值）
     FGameplayEffectSpecHandle SpecHandle = AbilitySystemComponent->MakeOutgoingSpec(
@@ -370,8 +377,11 @@ void ABattleCharacter::Heal(float Amount)
     // 安全检查：ASC / HealthSet / GE 类三者缺一不可
     if (!AbilitySystemComponent || !HealthSet || !HealEffectClass) return;
 
+    // 🆕 满血就不加了（避免底层值无限累加）
+    if (HealthSet->GetHealth() >= HealthSet->GetMaxHealth()) return;
+
     // ====== 调试打印：应用前 ======
-    const int32 EffectCountBefore = AbilitySystemComponent->GetActiveEffects().Num();
+    const int32 EffectCountBefore = AbilitySystemComponent->GetActiveEffects(FGameplayEffectQuery()).Num();
     UE_LOG(LogTemp, Warning, TEXT("[加血前] Health=%.1f / %.1f, 活跃效果数=%d"), HealthSet->GetHealth(), HealthSet->GetMaxHealth(), EffectCountBefore);
 
     // 1. 创建 GE 的 Spec (处方)： 指定用哪张GE，谁施加的（自己），以及效果强度（治疗数值）
@@ -395,14 +405,14 @@ void ABattleCharacter::Heal(float Amount)
     AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
 
     // ====== 调试打印：应用后 ======
-    const int32 EffectCountAfter = AbilitySystemComponent->GetActiveEffects().Num();
+    const int32 EffectCountAfter = AbilitySystemComponent->GetActiveEffects(FGameplayEffectQuery()).Num();
     UE_LOG(LogTemp, Warning, TEXT("[加血后] Health=%.1f / %.1f, 活跃效果数=%d"), HealthSet->GetHealth(), HealthSet->GetMaxHealth(), EffectCountAfter);
 }
 
 // 测试扣血
 void ABattleCharacter::TestTakeDamage()
 {
-    TakeDamage(10.0f);
+    ApplyDamage(10.0f);
 }
 
 // 测试加血

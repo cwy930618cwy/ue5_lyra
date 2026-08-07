@@ -1,6 +1,7 @@
 #include "Components/HealthComponent/HealthComponent.h"
 #include "AbilitySystemComponent.h"
 #include "Attributes/HealthSet/HealthSet.h"
+#include "Character/BattleCharacter.h"
 
 UHealthComponent::UHealthComponent()
 {

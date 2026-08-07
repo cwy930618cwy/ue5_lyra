@@ -41,10 +41,30 @@ void UBattleCharacterMovementComponent::TickComponent(float DeltaTime, enum ELev
 {
     Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
+    // 🆕 调试日志（每 0.5 秒打印一次）
+    static float LogTimer = 0.0f;
+    LogTimer += DeltaTime;
+    if (LogTimer >= 0.5f) {
+        LogTimer = 0.0f;
+
+        const bool bOnGround = IsMovingOnGround();
+        const float Speed2D = Velocity.Size2D();
+        const bool bSprintCondition = bWantsToSprint && Speed2D > 10.0f
+            && (bOnGround || AirTimeAccumulator <= SprintAirTime);
+
+        UE_LOG(LogTemp, Warning, TEXT("===== [SprintDebug] ====="));
+        UE_LOG(LogTemp, Warning, TEXT("  bWantsToSprint=%d  |  bIsSprinting=%d"), bWantsToSprint, bIsSprinting);
+        UE_LOG(LogTemp, Warning, TEXT("  bOnGround=%d  |  AirTime=%.2f / %.2f"), bOnGround, AirTimeAccumulator, SprintAirTime);
+        UE_LOG(LogTemp, Warning, TEXT("  Speed2D=%.1f  |  MaxWalkSpeed=%.1f"), Speed2D, MaxWalkSpeed);
+        UE_LOG(LogTemp, Warning, TEXT("  Sprint条件=%d  |  WalkSpeed=%.1f  SprintSpeed=%.1f"), bSprintCondition, WalkSpeed, SprintSpeed);
+    }
+
+    // ====== 原有冲刺逻辑 ======
+
     // 是否在地面上
     const bool bOnGround = IsMovingOnGround();
 
-    // 维护 “离开地面后的冲刺保留计时”
+    // 维护 "离开地面后的冲刺保留计时"
     if (bOnGround)
     {
         AirTimeAccumulator  = 0.0f;
@@ -64,5 +84,4 @@ void UBattleCharacterMovementComponent::TickComponent(float DeltaTime, enum ELev
         bIsSprinting = bSprintActive;
         MaxWalkSpeed = bIsSprinting ? SprintSpeed : WalkSpeed;
     }
-
 }

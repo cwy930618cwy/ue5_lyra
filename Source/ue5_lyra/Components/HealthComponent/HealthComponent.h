@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "Character/BattleCharacter.h"
 #include "GameplayEffectTypes.h"
 #include "HealthComponent.generated.h"
 
@@ -27,7 +28,4 @@ protected:
     // 持有 HealthSet 引用，后续获取血量值都要用
     UPROPERTY()
     UHealthSet* HealthSet;
-
-    // BattleCharacter.h public 区域加：
-    UHealthSet* GetHealthSet() const { return HealthSet; }
 };
