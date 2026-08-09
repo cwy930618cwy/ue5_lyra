@@ -17,7 +17,8 @@ public class ue5_lyra : ModuleRules
 			"EnhancedInput",  // ★ 新增：UE5 输入系统，支持更灵活的输入映射和组合
 			"GameplayAbilities",   // ★ 新增：GAS 核心(ASC/GA/GE/AttributeSet)
 			"GameplayTags",        // ★ 新增：Tag 系统(InputTag.Fire 之类)
-			"GameplayTasks"        // ★ 新增：GAS 异步任务(射击/蓄力等)
+			"GameplayTasks",        // ★ 新增：GAS 异步任务(射击/蓄力等)
+			"UMG"      // 控件系统（UserWidget）
 		});
 
 		PublicIncludePaths.AddRange(new string[] { ModuleDirectory });
