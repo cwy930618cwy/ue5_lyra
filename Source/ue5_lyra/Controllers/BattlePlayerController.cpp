@@ -1,5 +1,8 @@
 #include "BattlePlayerController.h"
 #include "Blueprint/UserWidget.h"
+#include "UI/HealthBarWidget/HealthBarWidget.h"
+#include "Character/BattleCharacter.h"
+#include "Attributes/HealthSet/HealthSet.h"   // ← 关键！这个有没有加？
 
 void ABattlePlayerController::BeginPlay()
 {
@@ -9,27 +12,24 @@ void ABattlePlayerController::BeginPlay()
 
 void ABattlePlayerController::CreateHUD()
 {
-    UE_LOG(LogTemp, Warning, TEXT("[HUD] CreateHUD 被调用"));
-
-    // 运行时加载 WBP_HealthBar 蓝图类
-    TSubclassOf<UUserWidget> HUDWidgetClass = LoadClass<UUserWidget>(
+    // 加载血条控件蓝图类
+    TSubclassOf<UHealthBarWidget> HUDWidgetClass = LoadClass<UHealthBarWidget>(
         nullptr,
         TEXT("/Game/MyResource/Blueprint/WBP_HealthBar.WBP_HealthBar_C"));
-    if (!HUDWidgetClass)
-    {
-        UE_LOG(LogTemp, Error, TEXT("[HUD] LoadClass 失败！路径：/Game/MyResource/Blueprint/WBP_HealthBar.WBP_HealthBar_C"));
-        return;
-    }
-    UE_LOG(LogTemp, Warning, TEXT("[HUD] LoadClass 成功"));
+    if (!HUDWidgetClass) return;
 
-    UUserWidget* Widget = CreateWidget<UUserWidget>(this, HUDWidgetClass);
-    if (!Widget)
+    // 创建血条控件实例（注意模板类型改成了 UHealthBarWidget）
+    HealthBarWidget = CreateWidget<UHealthBarWidget>(this, HUDWidgetClass);
+    if (HealthBarWidget)
     {
-        UE_LOG(LogTemp, Error, TEXT("[HUD] CreateWidget 失败"));
-        return;
-    }
-    UE_LOG(LogTemp, Warning, TEXT("[HUD] CreateWidget 成功"));
+        HealthBarWidget->AddToViewport();
 
-    Widget->AddToViewport();
-    UE_LOG(LogTemp, Warning, TEXT("[HUD] AddToViewport 已执行"));
+        // 从当前角色读血量并刷新
+        if (ABattleCharacter* BattleChar = Cast<ABattleCharacter>(GetPawn()))
+        {
+            HealthBarWidget->SetHealth(
+                BattleChar->GetHealthSet()->GetHealth(),
+                BattleChar->GetHealthSet()->GetMaxHealth());
+        }
+    }
 }

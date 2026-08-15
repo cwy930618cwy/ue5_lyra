@@ -4,6 +4,8 @@
 #include "GameFramework/PlayerController.h"
 #include "BattlePlayerController.generated.h"
 
+class UHealthBarWidget;
+
 UCLASS()
 class UE5_LYRA_API ABattlePlayerController : public APlayerController
 {
@@ -17,4 +19,8 @@ protected:
     // 创建血条UI并添加到屏幕
     UFUNCTION()
     void CreateHUD();
+
+    // 保存血条控件，方便后续刷新
+    UPROPERTY()
+    TObjectPtr<UHealthBarWidget> HealthBarWidget;
 };
