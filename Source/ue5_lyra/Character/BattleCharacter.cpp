@@ -130,6 +130,14 @@ ABattleCharacter::ABattleCharacter(const FObjectInitializer& ObjectInitializer)
         AttackMontage = AttackMontage_Finder.Object;
     }
 
+    // 加载受击动画蒙太奇
+    static ConstructorHelpers::FObjectFinder<UAnimMontage> HitReactMontage_Finder(
+        TEXT("/Game/MyResource/Animations/Manny/AM_Melee_Attack.AM_Melee_Attack"));
+    if (HitReactMontage_Finder.Succeeded())
+    {
+        HitReactMontage = HitReactMontage_Finder.Object;
+    }
+
     // 加载动画蓝图类（AnimBlueprint 需要用 _C 后缀加载 GeneratedClass）
     static ConstructorHelpers::FObjectFinder<UClass> ABP_Finder(
         TEXT("/Game/MyResource/Animations/BP_BattleAnimInstance.BP_BattleAnimInstance_C"));
@@ -341,8 +349,27 @@ void ABattleCharacter::SetCombatState(ECombatState NewState)
                 (int32)CurrentCombatState, (int32)NewState),
             2.0f, FColor::Yellow
         );
-        
         CurrentCombatState = NewState;
+
+        // 进入受击状态 -> 播放受击蒙太奇
+        if (NewState == ECombatState::HitReacting && HitReactMontage)
+        {
+            UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+            if (AnimInstance)
+            {
+                AnimInstance->Montage_Play(HitReactMontage, 1.0f);
+            }
+        }
+
+        // 离开受击状态 -> 停止受击蒙太奇
+        else if (CurrentCombatState == ECombatState::HitReacting)
+        {
+            UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+            if (AnimInstance)
+            {
+                AnimInstance->Montage_Stop(0.25f, HitReactMontage);
+            }
+        }
     }
 }
 

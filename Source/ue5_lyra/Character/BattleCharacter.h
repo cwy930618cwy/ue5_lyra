@@ -94,6 +94,10 @@ protected:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat")
     TObjectPtr<UAnimMontage> AttackMontage;
 
+    // 受击动画蒙太奇
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat")
+    TObjectPtr<UAnimMontage> HitReactMontage;
+
     // 自定义移动组件指针（方便直接调用冲刺方法）
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     TObjectPtr<UBattleCharacterMovementComponent> BattleMovement; 
