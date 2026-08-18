@@ -2,6 +2,7 @@
 #include "AbilitySystemComponent.h"
 #include "Attributes/HealthSet/HealthSet.h"
 #include "Character/BattleCharacter.h"
+#include "UI/HealthBarWidget/HealthBarWidget.h"
 
 UHealthComponent::UHealthComponent()
 {
@@ -47,7 +48,7 @@ void UHealthComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
     }
 }
 
-void UHealthComponent::OnHealthChanged(const FOnAttributeChangeData& Data) const
+void UHealthComponent::OnHealthChanged(const FOnAttributeChangeData& Data)
 {
     float NewHealth = Data.NewValue;
     float OldHealth = Data.OldValue;
@@ -72,5 +73,9 @@ void UHealthComponent::OnHealthChanged(const FOnAttributeChangeData& Data) const
     if (NewHealth <= 0.0f && OldHealth > 0.0f)
     {
         UE_LOG(LogTemp, Error, TEXT("!!! DEAD !!!"));
+    }
+
+    if(HealthBarWidget) {
+        HealthBarWidget->SetHealth(NewHealth, HealthSet->GetMaxHealth());
     }
 }

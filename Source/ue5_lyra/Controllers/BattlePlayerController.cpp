@@ -3,6 +3,7 @@
 #include "UI/HealthBarWidget/HealthBarWidget.h"
 #include "Character/BattleCharacter.h"
 #include "Attributes/HealthSet/HealthSet.h"   // ← 关键！这个有没有加？
+#include "Components/HealthComponent/HealthComponent.h"
 
 void ABattlePlayerController::BeginPlay()
 {
@@ -24,12 +25,18 @@ void ABattlePlayerController::CreateHUD()
     {
         HealthBarWidget->AddToViewport();
 
-        // 从当前角色读血量并刷新
+        // 初始化显示
         if (ABattleCharacter* BattleChar = Cast<ABattleCharacter>(GetPawn()))
         {
             HealthBarWidget->SetHealth(
                 BattleChar->GetHealthSet()->GetHealth(),
                 BattleChar->GetHealthSet()->GetMaxHealth());
+
+            // 🆕 把 Widget 交给 HealthComponent，让它后续自动更新
+            if (UHealthComponent* HealthComp = BattleChar->FindComponentByClass<UHealthComponent>())
+            {
+                HealthComp->HealthBarWidget = HealthBarWidget;
+            }
         }
     }
 }

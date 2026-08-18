@@ -23,6 +23,8 @@ class UAbilitySystemComponent;
 class UHealthSet;
 // 游戏性效果
 class UGameplayEffect;
+// 血量组件
+class UHealthComponent;
 
 
 // 输入动作值
@@ -119,6 +121,10 @@ protected:
     // 治疗 GE 模板类 （指向 GE_Heal 蓝图类，不是实例）
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Effects")
     TSubclassOf<UGameplayEffect> HealEffectClass;
+
+    // 血量组件
+    UPROPERTY(VisibleAnywhere, Category = "Components")
+    TObjectPtr<UHealthComponent> HealthComponent;
 
     // 输入回调
     void Move(const FInputActionValue& Value);

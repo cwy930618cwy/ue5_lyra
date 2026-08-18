@@ -33,6 +33,8 @@
 #include "GameplayEffectTypes.h"
 // GAS 效果
  #include "GameplayEffect.h"
+ // 血量组件
+#include "Components/HealthComponent/HealthComponent.h"
 
 ABattleCharacter::ABattleCharacter(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer.SetDefaultSubobjectClass<UBattleCharacterMovementComponent>(
@@ -186,6 +188,9 @@ ABattleCharacter::ABattleCharacter(const FObjectInitializer& ObjectInitializer)
     {
         UE_LOG(LogTemp, Error, TEXT("[BattleCharacter] 加载 GE_Heal 失败！请检查路径：/Game/MyResource/GameplayEffects/GE_Heal"));
     }
+
+    // 创建血量监测组件
+    HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
 }
 
 // 角色开始游戏
@@ -413,6 +418,9 @@ void ABattleCharacter::Heal(float Amount)
 void ABattleCharacter::TestTakeDamage()
 {
     ApplyDamage(10.0f);
+    // 加这行
+    UHealthComponent* HC = FindComponentByClass<UHealthComponent>();
+    UE_LOG(LogTemp, Warning, TEXT(">>> [Debug] HealthComponent = %s"), HC ? TEXT("存在") : TEXT("不存在!!!"));
 }
 
 // 测试加血
