@@ -28,3 +28,10 @@
 - **严禁直接修改用户代码**，只教不改，让用户自己动手
 - **教新代码时必须提前列出所有可能踩的坑**：访问权限（public/protected/private）、include 是否齐全、前向声明是否够用，不能等编译报错再补救
 - 错误案例（2026-08-18）：教用户加 HealthBarWidget 指针到 HealthComponent 时，没提醒要放 public 也没提醒 .cpp 要 include Widget 头文件，导致编译报 C2248（protected 访问）+ C2027（未定义类型）两个错误
+
+## 调试打印规范（2026-08-18）
+- **项目中所有运行时调试打印统一使用 `UDebugHelper::DebugLog`**（位于 `Components/DebugHelper/`）
+- 不要用 `UE_LOG` 做运行时调试打印（仅启动时的严重错误保留 UE_LOG）
+- `UDebugHelper::DebugLog(Message, Duration, Color)` 同时输出到屏幕 + 日志
+- 颜色约定：受伤/扣血=Red，治疗/加血=Green，状态切换/信息=Yellow
+- 该方法基于 `UBlueprintFunctionLibrary`，蓝图也能调用

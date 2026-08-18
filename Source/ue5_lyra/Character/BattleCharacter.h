@@ -3,6 +3,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "Enums/ABDCombatEnums.h"
 #include "BattleCharacter.generated.h"
 
 // 机械臂
@@ -90,10 +91,6 @@ protected:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat")
     TObjectPtr<UAnimMontage> AttackMontage;
 
-    // 是否正在攻击（防止连续触发）
-    UPROPERTY(BlueprintReadOnly, Category = "Combat")
-    bool bIsAttacking = false;
-
     // 自定义移动组件指针（方便直接调用冲刺方法）
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     TObjectPtr<UBattleCharacterMovementComponent> BattleMovement; 
@@ -126,6 +123,10 @@ protected:
     UPROPERTY(VisibleAnywhere, Category = "Components")
     TObjectPtr<UHealthComponent> HealthComponent;
 
+    // 当前战斗状态
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
+    ECombatState CurrentCombatState = ECombatState::Idle;
+
     // 输入回调
     void Move(const FInputActionValue& Value);
     void Look(const FInputActionValue& Value);
@@ -133,7 +134,13 @@ protected:
     void StopJump();
     void StartSprint();
     void StopSprint();
+
+    // 攻击
     void Attack();
+    // 切换战斗状态
+    void SetCombatState(ECombatState NewState);
+
+    // 测试扣血
     void TestTakeDamage();
     void TestHeal();
 

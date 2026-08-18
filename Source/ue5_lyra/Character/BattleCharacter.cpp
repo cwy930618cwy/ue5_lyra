@@ -35,6 +35,8 @@
  #include "GameplayEffect.h"
  // 血量组件
 #include "Components/HealthComponent/HealthComponent.h"
+// 调试工具
+#include "Components/DebugHelper/DebugHelper.h"
 
 ABattleCharacter::ABattleCharacter(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer.SetDefaultSubobjectClass<UBattleCharacterMovementComponent>(
@@ -303,14 +305,14 @@ void ABattleCharacter::StopSprint()
 void ABattleCharacter::Attack()
 {
     // 如果正在攻击或没有蒙太奇，直接返回
-    if (bIsAttacking || !AttackMontage) return;
+    if (CurrentCombatState != ECombatState::Idle || !AttackMontage) return;
 
     // 获取动画实例
     UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
     if (!AnimInstance) return;
 
-    // 标记正在攻击
-    bIsAttacking = true;
+    // 设置战斗状态为攻击中
+    SetCombatState(ECombatState::Attacking);
 
     // 播放攻击蒙太奇
     float Duration = AnimInstance->Montage_Play(AttackMontage, 1.0f);
@@ -325,14 +327,29 @@ void ABattleCharacter::Attack()
     else
     {
         // 播放失败，重置状态
-        bIsAttacking = false;
+        SetCombatState(ECombatState::Idle);
+    }
+}
+
+// 设置战斗状态
+void ABattleCharacter::SetCombatState(ECombatState NewState)
+{
+    if (CurrentCombatState != NewState)
+    {
+        UDebugHelper::DebugLog(
+            FString::Printf(TEXT("[战斗状态] %d → %d"), 
+                (int32)CurrentCombatState, (int32)NewState),
+            2.0f, FColor::Yellow
+        );
+        
+        CurrentCombatState = NewState;
     }
 }
 
 // 攻击蒙太奇播放结束回调
 void ABattleCharacter::OnAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
-    bIsAttacking = false;
+    SetCombatState(ECombatState::Idle);
 }
 
 // 获取 ASC（其他类（比如敌人）要攻击本角色时需要拿到它） 
@@ -373,7 +390,10 @@ void ABattleCharacter::ApplyDamage(float Amount)
     // 打印
     const float Current = HealthSet->GetHealth();
     const float Max     = HealthSet->GetMaxHealth();
-    UE_LOG(LogTemp, Warning, TEXT("[扣血] -%.1f → 当前：%.1f / %.1f"), Amount, Current, Max);
+    UDebugHelper::DebugLog(
+        FString::Printf(TEXT("[扣血] -%.1f → 当前：%.1f / %.1f"), Amount, Current, Max),
+        3.0f, FColor::Red
+    );
 }
 
 // 加血
@@ -387,7 +407,10 @@ void ABattleCharacter::Heal(float Amount)
 
     // ====== 调试打印：应用前 ======
     const int32 EffectCountBefore = AbilitySystemComponent->GetActiveEffects(FGameplayEffectQuery()).Num();
-    UE_LOG(LogTemp, Warning, TEXT("[加血前] Health=%.1f / %.1f, 活跃效果数=%d"), HealthSet->GetHealth(), HealthSet->GetMaxHealth(), EffectCountBefore);
+    UDebugHelper::DebugLog(
+        FString::Printf(TEXT("[加血前] Health=%.1f / %.1f, 活跃效果数=%d"), HealthSet->GetHealth(), HealthSet->GetMaxHealth(), EffectCountBefore),
+        3.0f, FColor::Green
+    );
 
     // 1. 创建 GE 的 Spec (处方)： 指定用哪张GE，谁施加的（自己），以及效果强度（治疗数值）
     FGameplayEffectSpecHandle SpecHandle = AbilitySystemComponent->MakeOutgoingSpec(
@@ -411,7 +434,10 @@ void ABattleCharacter::Heal(float Amount)
 
     // ====== 调试打印：应用后 ======
     const int32 EffectCountAfter = AbilitySystemComponent->GetActiveEffects(FGameplayEffectQuery()).Num();
-    UE_LOG(LogTemp, Warning, TEXT("[加血后] Health=%.1f / %.1f, 活跃效果数=%d"), HealthSet->GetHealth(), HealthSet->GetMaxHealth(), EffectCountAfter);
+    UDebugHelper::DebugLog(
+        FString::Printf(TEXT("[加血后] Health=%.1f / %.1f, 活跃效果数=%d"), HealthSet->GetHealth(), HealthSet->GetMaxHealth(), EffectCountAfter),
+        3.0f, FColor::Green
+    );
 }
 
 // 测试扣血
@@ -420,7 +446,10 @@ void ABattleCharacter::TestTakeDamage()
     ApplyDamage(10.0f);
     // 加这行
     UHealthComponent* HC = FindComponentByClass<UHealthComponent>();
-    UE_LOG(LogTemp, Warning, TEXT(">>> [Debug] HealthComponent = %s"), HC ? TEXT("存在") : TEXT("不存在!!!"));
+    UDebugHelper::DebugLog(
+        FString::Printf(TEXT(">>> [Debug] HealthComponent = %s"), HC ? TEXT("存在") : TEXT("不存在!!!")),
+        5.0f, FColor::Yellow
+    );
 }
 
 // 测试加血

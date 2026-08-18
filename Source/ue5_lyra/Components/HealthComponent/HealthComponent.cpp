@@ -3,6 +3,7 @@
 #include "Attributes/HealthSet/HealthSet.h"
 #include "Character/BattleCharacter.h"
 #include "UI/HealthBarWidget/HealthBarWidget.h"
+#include "Components/DebugHelper/DebugHelper.h"
 
 UHealthComponent::UHealthComponent()
 {
@@ -54,25 +55,27 @@ void UHealthComponent::OnHealthChanged(const FOnAttributeChangeData& Data)
     float OldHealth = Data.OldValue;
     float Delta = NewHealth - OldHealth;
 
-    // 打印血量变化信息
-    UE_LOG(LogTemp, Warning, TEXT("Health changed: %f → %f (delta=%f)"), 
-           OldHealth, NewHealth, Delta);
-
     // 受伤
     if (Delta < 0.0f)
     {
-        UE_LOG(LogTemp, Warning, TEXT(">>> HURT! Took %f damage"), -Delta);
+        UDebugHelper::DebugLog(
+            FString::Printf(TEXT(">>> HURT! Took %.1f damage"), -Delta),
+            3.0f, FColor::Red
+        );
     }
     // 治疗
     else if (Delta > 0.0f)
     {
-        UE_LOG(LogTemp, Warning, TEXT(">>> HEALED! Got %f healing"), Delta);
+        UDebugHelper::DebugLog(
+            FString::Printf(TEXT(">>> HEALED! Got %.1f healing"), Delta),
+            3.0f, FColor::Green
+        );
     }
 
     // 死亡检查
     if (NewHealth <= 0.0f && OldHealth > 0.0f)
     {
-        UE_LOG(LogTemp, Error, TEXT("!!! DEAD !!!"));
+        UDebugHelper::DebugLog(TEXT("!!! DEAD !!!"), 5.0f, FColor::Red);
     }
 
     if(HealthBarWidget) {
