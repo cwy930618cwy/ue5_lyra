@@ -22,6 +22,9 @@ protected:
 
     void OnHealthChanged(const FOnAttributeChangeData& Data);
 
+    // 受击硬直结束
+    void OnHitReactEnd();
+
     // 持有 ASC 引用，后续注册/反注册回调都要用
     UPROPERTY()
     UAbilitySystemComponent* ASC;
@@ -33,4 +36,7 @@ protected:
 public:
     UPROPERTY()
     UHealthBarWidget* HealthBarWidget;
+
+    UPROPERTY()
+    ABattleCharacter* OwnerCharacter;
 };

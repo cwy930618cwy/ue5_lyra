@@ -53,6 +53,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Health")
     void Heal(float Amount); 
 
+     // 切换战斗状态
+    void SetCombatState(ECombatState NewState);
+
 protected:
     virtual void BeginPlay() override;
     // 设置玩家输入组件
@@ -137,8 +140,6 @@ protected:
 
     // 攻击
     void Attack();
-    // 切换战斗状态
-    void SetCombatState(ECombatState NewState);
 
     // 测试扣血
     void TestTakeDamage();

@@ -25,6 +25,9 @@ void UHealthComponent::BeginPlay()
     ABattleCharacter* Character = Cast<ABattleCharacter>(Owner);
     if(!Character) return;
 
+    // 缓存角色指针
+    OwnerCharacter = Character;
+
     HealthSet = Character->GetHealthSet();
     if(!HealthSet) return;
 
@@ -62,6 +65,21 @@ void UHealthComponent::OnHealthChanged(const FOnAttributeChangeData& Data)
             FString::Printf(TEXT(">>> HURT! Took %.1f damage"), -Delta),
             3.0f, FColor::Red
         );
+
+        // 进入受击僵直
+        if(OwnerCharacter) {
+            OwnerCharacter->SetCombatState(ECombatState::HitReacting);
+
+            // 延迟 0.5 秒后退出受击僵直
+            FTimerHandle HitStunTimerHandle;
+            GetWorld()->GetTimerManager().SetTimer(
+                HitStunTimerHandle,  // ← 改成一样的
+                this,
+                &UHealthComponent::OnHitReactEnd,
+                0.5f,
+                false
+            );
+        }
     }
     // 治疗
     else if (Delta > 0.0f)
@@ -80,5 +98,12 @@ void UHealthComponent::OnHealthChanged(const FOnAttributeChangeData& Data)
 
     if(HealthBarWidget) {
         HealthBarWidget->SetHealth(NewHealth, HealthSet->GetMaxHealth());
+    }
+}
+
+void UHealthComponent::OnHitReactEnd()
+{
+    if(OwnerCharacter) {
+        OwnerCharacter->SetCombatState(ECombatState::Idle);
     }
 }
