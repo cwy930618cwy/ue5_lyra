@@ -37,6 +37,10 @@
 #include "Components/HealthComponent/HealthComponent.h"
 // 调试工具
 #include "Components/DebugHelper/DebugHelper.h"
+// 攻击技能
+#include "Abilities/GA_Attack/GA_Attack.h"
+// GameplayAbilitySpec（授予技能用）
+#include "GameplayTagContainer.h"
 
 ABattleCharacter::ABattleCharacter(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer.SetDefaultSubobjectClass<UBattleCharacterMovementComponent>(
@@ -175,6 +179,14 @@ ABattleCharacter::ABattleCharacter(const FObjectInitializer& ObjectInitializer)
         TestHealAction = TestHealAction_Finder.Object;
     }
 
+    // 加载测试显示属性输入动作
+    static ConstructorHelpers::FObjectFinder<UInputAction> TestShowStatsAction_Finder(
+        TEXT("/Game/MyResource/Input/IA_ShowStats.IA_ShowStats"));
+    if (TestShowStatsAction_Finder.Succeeded())
+    {
+        TestShowStatsAction = TestShowStatsAction_Finder.Object;
+    }
+
     // 加载伤害 GE 蓝图类
     static ConstructorHelpers::FClassFinder<UGameplayEffect> DamageEffectFinder(
         TEXT("/Game/MyResource/GameplayEffects/GE_Damage"));
@@ -225,6 +237,18 @@ void ABattleCharacter::BeginPlay()
         // 初始化当前血量
         HealthSet->InitHealth(100.0f);
     }
+
+    // ===== 授予攻击技能 ===== //
+    if (AbilitySystemComponent && AttackAbilityClass)
+    {
+        FGameplayAbilitySpec AbilitySpec(AttackAbilityClass);
+        AbilitySystemComponent->GiveAbility(AbilitySpec);
+    }
+
+    // 监听"攻击结束"事件，复位战斗状态
+    AbilitySystemComponent->GenericGameplayEventCallbacks.FindOrAdd(
+        FGameplayTag::RequestGameplayTag(FName("Event.Combat.AttackEnded"))
+    ).AddUObject(this, &ABattleCharacter::OnAttackEnded);
 }
 
 // 设置玩家输入组件
@@ -247,6 +271,9 @@ void ABattleCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 
         // 绑定测试加血输入动作（J键）
         EnhancedInput->BindAction(TestHealAction, ETriggerEvent::Started, this, &ABattleCharacter::TestHeal);
+
+        // 绑定测试显示属性输入动作（K键）
+        EnhancedInput->BindAction(TestShowStatsAction, ETriggerEvent::Started, this, &ABattleCharacter::ShowStats);
     }
 }
 
@@ -312,31 +339,18 @@ void ABattleCharacter::StopSprint()
 // 攻击
 void ABattleCharacter::Attack()
 {
-    // 如果正在攻击或没有蒙太奇，直接返回
-    if (CurrentCombatState != ECombatState::Idle || !AttackMontage) return;
+    // 如果正在攻击或没有 ASC，直接返回
+    if (CurrentCombatState != ECombatState::Idle || !AbilitySystemComponent) return;
 
-    // 获取动画实例
-    UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
-    if (!AnimInstance) return;
+    // 通过 ASC 激活攻击技能
+    if (!AbilitySystemComponent->TryActivateAbilityByClass(AttackAbilityClass))
+    {
+        UDebugHelper::DebugLog(TEXT("[Attack] 技能激活失败！"), 2.0f, FColor::Red);
+        return;
+    }
 
     // 设置战斗状态为攻击中
     SetCombatState(ECombatState::Attacking);
-
-    // 播放攻击蒙太奇
-    float Duration = AnimInstance->Montage_Play(AttackMontage, 1.0f);
-    
-    if (Duration > 0.0f)
-    {
-        // 绑定蒙太奇结束回调
-        FOnMontageEnded EndDelegate;
-        EndDelegate.BindUObject(this, &ABattleCharacter::OnAttackMontageEnded);
-        AnimInstance->Montage_SetEndDelegate(EndDelegate, AttackMontage);
-    }
-    else
-    {
-        // 播放失败，重置状态
-        SetCombatState(ECombatState::Idle);
-    }
 }
 
 // 设置战斗状态
@@ -374,7 +388,8 @@ void ABattleCharacter::SetCombatState(ECombatState NewState)
 }
 
 // 攻击蒙太奇播放结束回调
-void ABattleCharacter::OnAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+// .cpp 实现也加 const
+void ABattleCharacter::OnAttackEnded(const FGameplayEventData* EventData) const
 {
     SetCombatState(ECombatState::Idle);
 }
@@ -483,4 +498,22 @@ void ABattleCharacter::TestTakeDamage()
 void ABattleCharacter::TestHeal()
 {
     Heal(10.0f);
+}
+
+// 显示所有属性（调试用）
+void ABattleCharacter::ShowStats()
+{
+    if (!HealthSet) return;
+
+    UDebugHelper::DebugLog(
+        FString::Printf(
+            TEXT("[属性] HP:%.0f/%.0f | ATK:%.0f | DEF:%.0f | 体力:%.0f/%.0f | 移速:%.1fx"),
+            HealthSet->GetHealth(), HealthSet->GetMaxHealth(),
+            HealthSet->GetAttackPower(),
+            HealthSet->GetDefense(),
+            HealthSet->GetStamina(), HealthSet->GetMaxStamina(),
+            HealthSet->GetMoveSpeed()
+        ),
+        5.0f, FColor::Cyan
+    );
 }

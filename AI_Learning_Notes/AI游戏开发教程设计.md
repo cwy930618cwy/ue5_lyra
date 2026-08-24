@@ -468,6 +468,73 @@ void UABDAttackNotify::Notify(USkeletalMeshComponent* MeshComp,
 
 ---
 
+---
+
+## 📊 实际项目进度（ue5_lyra · 2026-08-20 更新）
+
+> 这是 `e:\ue5\ue5_lyra` 项目的真实进度追踪，与上面的 7 天教程规划分开管理。
+> 技术栈：UE 5.5 | C++ | GAS | Enhanced Input（无 MetaHuman / Meshy AI）
+
+### 第一阶段：角色与移动 ✅ 完成
+
+| 模块 | 状态 | 说明 |
+|------|------|------|
+| 角色基类 ABattleCharacter | ✅ | ACharacter 子类，含 SpringArm + Camera |
+| 自定义移动组件 | ✅ | UBattleCharacterMovementComponent（冲刺支持） |
+| Enhanced Input | ✅ | Move/Look/Jump/Sprint/Attack/TestDamage/TestHeal/ShowStats |
+| 动画蓝图 | ✅ | BP_BattleAnimInstance + AM_Melee_Attack 蒙太奇 |
+| 战斗状态机 | ✅ | ECombatState: Idle/Moving/Attacking/HitReacting/Dead |
+| 受击反馈 | ✅ | HealthComponent 监听血量 → HitReacting → 受击蒙太奇 → 0.5s 恢复 |
+| 调试工具 | ✅ | UDebugHelper::DebugLog（屏幕+日志，蓝图可调用） |
+
+### 第二阶段：GAS 技能系统 🔄 进行中
+
+| 任务 | 状态 | 涉及文件 |
+|------|------|---------|
+| T2.1 生命值系统 | ✅ | HealthSet (Health/MaxHealth) + ASC (Mixed) + GE_Damage/GE_Heal |
+| T2.2 血条 UI 实时更新 | ✅ | HealthComponent + HealthBarWidget + BattlePlayerController |
+| T2.3 属性集扩展 | ✅ | AttackPower / Defense / Stamina / MaxStamina / MoveSpeed + ShowStats(K键) |
+| T2.4 GA 基类设计 | ✅ | Abilities/GA_BattleAbility/ (InstancedPerActor + LocalPredicted) |
+| T2.5 攻击技能 GA_Attack | ✅ | Abilities/GA_Attack/ (激活播蒙太奇 + EndAbility 清理) |
+| T2.6 授予技能 + 输入触发 | ⏳ 待做 | BattleCharacter::BeginPlay GiveAbility + Attack() 改 TryActivateAbility |
+| T2.7 蒙太奇结束回调 → EndAbility | ⏳ 待做 | GA_Attack 内部绑定 Montage 结束 → EndAbility → 状态回 Idle |
+| T2.8 伤害计算流程 | 待做 | 攻击力 - 防御力 = 实际伤害（ExecutionCalculation 或 SetByCaller） |
+| T2.9 Buff/Debuff 系统 | 待做 | Duration GE + Modifier |
+| T2.10 技能冷却与消耗 | 待做 | CooldownGE + CostGE |
+
+### ⚠️ UE5.5 API 变更备忘（教学强制参考）
+
+| 旧写法（5.4-） | 新写法（5.5+） |
+|---|---|
+| `EGameplayAbilityInstancingPolicy::PerExecution` | `InstancedPerExecution`（Lyra 实际用 `InstancedPerActor`） |
+| `FGameplayAbilityTriggerData(Source)` 构造函数 | `FAbilityTriggerData` + 分开赋值 `.TriggerSource` |
+
+### 目录结构约定（当前）
+
+```
+Source/ue5_lyra/
+├── Character/
+│   ├── BattleCharacter.h/.cpp          # 角色基类
+│   └── Movement/BattleCharacterMovementComponent.h/.cpp
+├── Attributes/HealthSet/
+│   └── HealthSet.h/.cpp                # 属性集（Health/MaxHealth/AttackPower/Defense/Stamina/MaxStamina/MoveSpeed）
+├── Abilities/
+│   ├── GA_BattleAbility/
+│   │   └── GA_BattleAbility.h/.cpp     # GA 基类
+│   ├── GA_Attack/
+│   │   └── GA_Attack.h/.cpp            # 攻击技能
+│   ├── ChargeSlashAbility/             # 预留
+│   ├── SpinSlashAbility/               # 预留
+│   └── WarCryAbility/                  # 预留
+├── Components/
+│   ├── HealthComponent/                # 血量监听 + 受击反馈 + 血条更新
+│   └── DebugHelper/                    # 调试打印工具
+├── Enums/ABDCombatEnums.h              # 战斗状态枚举
+└── Data/                               # 预留
+```
+
+---
+
 ## Day 4：GAS 技能系统基础框架（4h）
 
 ### 4.1 GAS 核心概念速查（参考手册）

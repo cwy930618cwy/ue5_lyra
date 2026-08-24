@@ -30,6 +30,31 @@ public:
     FGameplayAttributeData MaxHealth;
     ATTRIBUTE_ACCESSORS(UHealthSet, MaxHealth)
 
+    // 攻击力
+    UPROPERTY(BlueprintReadOnly, Category = "Combat")
+    FGameplayAttributeData AttackPower;
+    ATTRIBUTE_ACCESSORS(UHealthSet, AttackPower)
+
+    // 防御力
+    UPROPERTY(BlueprintReadOnly, Category = "Combat")
+    FGameplayAttributeData Defense;
+    ATTRIBUTE_ACCESSORS(UHealthSet, Defense)
+
+    // 当前体力
+    UPROPERTY(BlueprintReadOnly, Category = "Stamina")
+    FGameplayAttributeData Stamina;
+    ATTRIBUTE_ACCESSORS(UHealthSet, Stamina)
+
+    // 最大体力
+    UPROPERTY(BlueprintReadOnly, Category = "Stamina")
+    FGameplayAttributeData MaxStamina;
+    ATTRIBUTE_ACCESSORS(UHealthSet, MaxStamina)
+
+    // 移动速度加成（1.0 = 100%，1.5 = 150%）
+    UPROPERTY(BlueprintReadOnly, Category = "Combat")
+    FGameplayAttributeData MoveSpeed;
+    ATTRIBUTE_ACCESSORS(UHealthSet, MoveSpeed)
+
     // 属性即将变化时调用，用于把属性钳制在合理范围内
     virtual void PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue) override;
 };

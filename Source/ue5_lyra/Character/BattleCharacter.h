@@ -26,10 +26,15 @@ class UHealthSet;
 class UGameplayEffect;
 // 血量组件
 class UHealthComponent;
+// 攻击技能
+class UGA_Attack;
 
 
 // 输入动作值
 struct FInputActionValue;
+
+// GAS 事件数据
+struct FGameplayEventData;
 
 UCLASS()
 class UE5_LYRA_API ABattleCharacter : public ACharacter
@@ -118,6 +123,10 @@ protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Input")
     TObjectPtr<UInputAction> TestHealAction; 
 
+    // 测试显示属性输入动作（K键）
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Input")
+    TObjectPtr<UInputAction> TestShowStatsAction;
+
     // 伤害 GE 模板类 （指向 GE_Damage 蓝图类，不是实例）
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Effects")
     TSubclassOf<UGameplayEffect> DamageEffectClass;
@@ -125,6 +134,10 @@ protected:
     // 治疗 GE 模板类 （指向 GE_Heal 蓝图类，不是实例）
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Effects")
     TSubclassOf<UGameplayEffect> HealEffectClass;
+
+    // 攻击技能类（用于授予 ASC）
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Abilities")
+    TSubclassOf<UGA_Attack> AttackAbilityClass;
 
     // 血量组件
     UPROPERTY(VisibleAnywhere, Category = "Components")
@@ -149,7 +162,9 @@ protected:
     void TestTakeDamage();
     void TestHeal();
 
-    // 蒙太奇播放结束回调
-    UFUNCTION()
-    void OnAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+    // 显示所有属性（调试用）
+    void ShowStats();
+
+    // 攻击结束事件处理（GA 发来，复位状态）
+    void OnAttackEnded(const FGameplayEventData* EventData) const;
 };

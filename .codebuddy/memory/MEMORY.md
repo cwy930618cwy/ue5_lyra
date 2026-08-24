@@ -29,6 +29,16 @@
 - **教新代码时必须提前列出所有可能踩的坑**：访问权限（public/protected/private）、include 是否齐全、前向声明是否够用，不能等编译报错再补救
 - 错误案例（2026-08-18）：教用户加 HealthBarWidget 指针到 HealthComponent 时，没提醒要放 public 也没提醒 .cpp 要 include Widget 头文件，导致编译报 C2248（protected 访问）+ C2027（未定义类型）两个错误
 
+## ⚠️ P0：UE5.5 API 变更强制规范（2026-08-20）
+- **项目使用 UE 5.5，所有教学代码必须用 5.5+ 新 API，禁止使用旧版写法**
+- 每次教 GAS 相关代码前，先查 `C:\Program Files\Epic Games\UE_5.5\Engine\Plugins\Runtime\GameplayAbilities\Source\GameplayAbilities\Public\` 或 Lyra 源码确认 API 名称
+- **已知的 UE5.5 API 变更清单**：
+  | 旧写法（5.4-） | 新写法（5.5+） |
+  |---|---|
+  | `EGameplayAbilityInstancingPolicy::PerExecution` | `EGameplayAbilityInstancingPolicy::InstancedPerExecution`（注意：Lyra 实际用 `InstancedPerActor`） |
+  | `FGameplayAbilityTriggerData(EGameplayAbilityTriggerSource::X)` 构造函数 | `FAbilityTriggerData TriggerData; TriggerData.TriggerSource = ...; AbilityTriggers.Add(TriggerData);` |
+- 错误案例（2026-08-20）：教 GA_BattleAbility 时用旧版 `PerExecution` 枚举名 + `FGameplayAbilityTriggerData` 构造函数，导致 C2039/C2065/C3861 三次编译报错，用户明确要求"更新教程用 5.5+ 新写法"
+
 ## 调试打印规范（2026-08-18）
 - **项目中所有运行时调试打印统一使用 `UDebugHelper::DebugLog`**（位于 `Components/DebugHelper/`）
 - 不要用 `UE_LOG` 做运行时调试打印（仅启动时的严重错误保留 UE_LOG）
