@@ -1,0 +1,280 @@
+# 核心文件清单
+
+## 一个场景引入
+
+上一篇我们知道了 Experience 系统的核心思想——**用数据驱动替代继承**。但你打开 Lyra 源码一看，发现跟 Experience 相关的文件有十几个。
+
+> "这么多文件，每个是干什么的？谁负责加载？谁负责执行？"
+
+这篇就带你把这张"地图"画清楚——10 个类按职责分成 4 组，每个类告诉你它是什么、继承什么、核心成员有哪些。
+
+---
+
+## 核心思想
+
+> **一张配置表（Definition）→ 一个加载器（Component）→ 一个执行器（Manager）→ 一堆动作（Action）**
+
+| 分组 | 包含的类 | 一句话职责 |
+|------|----------|-----------|
+| 📋 数据层 | `ExperienceDefinition`、`ExperienceActionSet`、`UserFacingExperienceDefinition` | 存配置 |
+| ⚙️ 加载层 | `ExperienceManagerComponent`、`ExperienceManager` | 加载配置 |
+| 🎮 执行层 | `GameMode`、`GameState`、`WorldSettings` | 使用配置 |
+| 🔧 辅助层 | `BotCreationComponent`、`AsyncAction_ExperienceReady` | 扩展功能 |
+
+---
+
+## 相关源码
+
+> 📂 代码位置：`../代码/` 文件夹（所有子章节共享同一份源码，本地只有 ExperienceDefinition + GameMode 的源码，其余类标注了源码路径供参考）
+
+### 文件总览
+
+| 文件 | 角色 | 本地有无 |
+|------|------|----------|
+| `LyraExperienceDefinition.h/.cpp` | 数据资产：配置表骨架 | ✅ 有 |
+| `LyraGameMode.h/.cpp` | GameMode：读取 Experience 决定 Pawn | ✅ 有 |
+| `LyraExperienceManagerComponent.h/.cpp` | Component：异步加载 Experience | ❌ 需参考 Lyra 源码 |
+| `LyraExperienceManager.h/.cpp` | UObject：实际执行加载逻辑 | ❌ 需参考 Lyra 源码 |
+| `LyraExperienceActionSet.h/.cpp` | 数据资产：可复用 Action 组合包 | ❌ 需参考 Lyra 源码 |
+| `LyraGameState.h/.cpp` | GameState：承载 ManagerComponent | ❌ 需参考 Lyra 源码 |
+| `LyraWorldSettings.h/.cpp` | WorldSettings：关卡级默认 Experience | ❌ 需参考 Lyra 源码 |
+| `LyraUserFacingExperienceDefinition.h/.cpp` | 数据资产：主菜单玩法列表 | ❌ 需参考 Lyra 源码 |
+| `LyraBotCreationComponent.h/.cpp` | Component：动态创建 AI Bot | ❌ 需参考 Lyra 源码 |
+| `AsyncAction_ExperienceReady.h/.cpp` | 蓝图节点：等待 Experience 就绪 | ❌ 需参考 Lyra 源码 |
+
+---
+
+## 第一组：📋 数据层（存配置）
+
+### 1. `ULyraExperienceDefinition` — 核心配置表
+
+**继承**：`UObject → UDataAsset → UPrimaryDataAsset → ULyraExperienceDefinition`
+
+**职责**：一份"游戏模式配置文件"，策划在编辑器里创建实例、填好参数，就定义了一种玩法。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `GameFeaturesToEnable` | `TArray<FString>` | 要启用的 GameFeature 插件列表 |
+| `DefaultPawnData` | `TObjectPtr<const ULyraPawnData>` | 默认 Pawn 数据 |
+| `Actions` | `TArray<TObjectPtr<UGameFeatureAction>>` | 内联 Action（Instanced + EditInlineNew） |
+| `ActionSets` | `TArray<TObjectPtr<ULyraExperienceActionSet>>` | 引用的外部 ActionSet |
+
+> 📄 完整源码见 `代码/LyraExperienceDefinition.h` 和 `.cpp`
+
+---
+
+### 2. `ULyraExperienceActionSet` — 可复用的 Action 组合包
+
+**继承**：`UObject → UDataAsset → UPrimaryDataAsset → ULyraExperienceActionSet`
+
+**职责**：把多个 Action 打包成一个可复用的"组合包"。多个 Experience 可以引用同一个 ActionSet，避免重复配置。
+
+```cpp
+// 类比：ExperienceDefinition 是"菜谱"，ActionSet 是"预制菜"
+// 团队竞技和占点模式都需要"队伍 UI"这个 ActionSet
+// 不用每个 Experience 里都配一遍，直接引用即可
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `Actions` | `TArray<TObjectPtr<UGameFeatureAction>>` | 打包的 Action 列表 |
+
+> ⚠️ 本地无此文件源码，需参考 LyraStarterGame 源码 `Source/LyraGame/Experience/LyraExperienceActionSet.h`
+
+---
+
+### 3. `ULyraUserFacingExperienceDefinition` — 主菜单显示用
+
+**继承**：`UObject → UDataAsset → UPrimaryDataAsset → ULyraUserFacingExperienceDefinition`
+
+**职责**：给主菜单看的"玩法列表"。玩家在主菜单看到的每个选项（团队竞技、个人竞技...）对应的就是这个类的实例。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `Experience` | `TSoftObjectPtr<ULyraExperienceDefinition>` | 指向实际的 Experience 配置 |
+| `MenuDisplayName` | `FText` | 主菜单上显示的名字 |
+| `MenuDescription` | `FText` | 主菜单上的描述文字 |
+| `MapToShow` | `TSoftObjectPtr<UWorld>` | 对应的地图 |
+
+```cpp
+// 关系：UserFacingExperienceDefinition → 引用 → ExperienceDefinition
+// 前者是给玩家看的"门面"，后者是真正的"配置"
+```
+
+> ⚠️ 本地无此文件源码，需参考 LyraStarterGame 源码
+
+---
+
+## 第二组：⚙️ 加载层（加载配置）
+
+### 4. `ULyraExperienceManagerComponent` — 异步加载器
+
+**继承**：`UActorComponent → ULyraExperienceManagerComponent`
+
+**职责**：挂在 `ALyraGameState` 上，负责**异步加载** Experience 及其依赖的 GameFeature 插件。
+
+| 方法 | 说明 |
+|------|------|
+| `SetCurrentExperience(FPrimaryAssetId)` | 设置要加载的 Experience |
+| `GetCurrentExperience()` | 获取当前加载的 Experience |
+| `OnExperienceLoaded()` | 加载完成回调（委托给 Manager 执行） |
+
+```cpp
+// 生命周期：
+// GameState 创建 → 自动带上 ExperienceManagerComponent
+// GameMode 调用 SetCurrentExperience() → Component 开始异步加载
+// 加载完成 → 广播委托通知 GameMode
+```
+
+> ⚠️ 本地无此文件源码，需参考 LyraStarterGame 源码 `Source/LyraGame/Experience/LyraExperienceManagerComponent.h`
+
+---
+
+### 5. `ULyraExperienceManager` — 实际执行者
+
+**继承**：`UObject → ULyraExperienceManager`
+
+**职责**：被 `ExperienceManagerComponent` 委托，**实际执行**加载逻辑（加载 GameFeature 插件、创建 Action 实例等）。
+
+| 方法 | 说明 |
+|------|------|
+| `LoadExperience()` | 执行加载 |
+| `UnloadExperience()` | 卸载 Experience（切换模式时用） |
+| `ExecuteActions()` | 执行所有 Action 的 `OnGameFeatureActivating` |
+
+```cpp
+// Component vs Manager 的关系：
+// Component = 调度员（管生命周期、对外接口）
+// Manager   = 工人（干实际活）
+// 分开的原因：Manager 是 UObject，可以被 GC；Component 是 ActorComponent，跟随 Actor 生命周期
+```
+
+> ⚠️ 本地无此文件源码，需参考 LyraStarterGame 源码
+
+---
+
+## 第三组：🎮 执行层（使用配置）
+
+### 6. `ALyraGameMode` — 读取 Experience 决定 Pawn
+
+**继承**：`AModularGameMode → ALyraGameMode`
+
+**职责**：游戏启动时触发 Experience 加载，加载完成后为在场玩家生成 Pawn，动态决定每个玩家的 Pawn 类型。
+
+| 方法 | 说明 |
+|------|------|
+| `InitGame()` | 入口，触发 Experience 加载 |
+| `HandleMatchAssignmentIfNotExpectingOne()` | 按优先级确定用哪个 Experience |
+| `OnExperienceLoaded()` | 加载完成回调，为在场玩家生成 Pawn |
+| `GetDefaultPawnClassForController_Implementation()` | 从 Experience 获取 Pawn 类型 |
+
+> 📄 完整源码见 `代码/LyraGameMode.h` 和 `.cpp`
+
+---
+
+### 7. `ALyraGameState` — 承载 ManagerComponent
+
+**继承**：`AModularGameStateBase → ALyraGameState`
+
+**职责**：作为 ExperienceManagerComponent 的宿主。GameMode 通过 GameState 找到 Component。
+
+```cpp
+// 关键代码（GameMode 中）：
+if (ALyraGameState* GameState = GetGameState<ALyraGameState>())
+{
+    // GameState 上一定有 ExperienceManagerComponent
+    ULyraExperienceManagerComponent* Component = 
+        GameState->FindComponentByClass<ULyraExperienceManagerComponent>();
+}
+```
+
+> ⚠️ 本地无此文件源码，需参考 LyraStarterGame 源码
+
+---
+
+### 8. `ALyraWorldSettings` — 关卡级默认 Experience
+
+**继承**：`AWorldSettings → ALyraWorldSettings`
+
+**职责**：在每个关卡的 WorldSettings 里配置默认的 Experience。这样同一套 GameMode 代码，不同关卡可以加载不同的 Experience。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `DefaultGameplayExperience` | `FPrimaryAssetId` | 关卡默认的 Experience 资产 ID |
+
+```cpp
+// 优先级链：
+// WorldSettings 里的 Experience > 命令行参数 > 项目设置默认值
+// 这样设计师可以在关卡里覆盖默认配置
+```
+
+> ⚠️ 本地无此文件源码，需参考 LyraStarterGame 源码
+
+---
+
+## 第四组：🔧 辅助层（扩展功能）
+
+### 9. `ULyraBotCreationComponent` — 动态创建 AI Bot
+
+**继承**：`UActorComponent → ULyraBotCreationComponent`
+
+**职责**：根据 Experience 配置动态创建 AI Bot。不同 Experience 可以配置不同数量和类型的 Bot。
+
+> ⚠️ 本地无此文件源码，需参考 LyraStarterGame 源码
+
+---
+
+### 10. `UAsyncAction_ExperienceReady` — 蓝图等待节点
+
+**继承**：`UBlueprintAsyncActionBase → UAsyncAction_ExperienceReady`
+
+**职责**：蓝图中等待 Experience 加载完成的节点。蓝图开发者可以用它确保 Experience 就绪后再执行后续逻辑。
+
+```cpp
+// 蓝图用法：
+// "Wait for Experience Ready" → 完成后继续执行
+// 相当于 C++ 里的一个 Promise/Future
+```
+
+> ⚠️ 本地无此文件源码，需参考 LyraStarterGame 源码
+
+---
+
+## 完整数据流
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  数据层                                                       │
+│                                                              │
+│  UserFacingExperienceDefinition ──引用──▶ ExperienceDefinition│
+│  （主菜单显示）                            （核心配置）         │
+│                                              │               │
+│                          ┌───────────────────┘               │
+│                          ▼                                   │
+│  加载层                                                       │
+│                                                              │
+│  ExperienceManagerComponent ──委托──▶ ExperienceManager       │
+│  （挂在 GameState 上）                    （实际执行加载）      │
+│                          │                                   │
+│                          ▼                                   │
+│  执行层                                                       │
+│                                                              │
+│  GameMode.OnExperienceLoaded()                              │
+│      │  读取 ExperienceDefinition.DefaultPawnData            │
+│      ▼                                                      │
+│  生成 Pawn                                                    │
+│                                                              │
+│  辅助层                                                       │
+│                                                              │
+│  BotCreationComponent ── 根据 Experience 创建 Bot             │
+│  AsyncAction_ExperienceReady ── 蓝图等待加载完成              │
+└──────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 一句话总结
+
+> **数据层存配置 → 加载层读配置 → 执行层用配置 → 辅助层扩展功能**
+
+10 个类各司其职，共同组成 Experience 系统的完整链路。

@@ -1,131 +1,56 @@
 # Experience 系统总览
 
 ## 一句话概括
-Lyra 不用传统"硬编码 GameMode"的方式，而是用 **数据资产（DataAsset）描述一局游戏的玩法配置**，然后在运行时动态加载、激活。这套机制就叫 **Experience（体验）系统**。
 
-## 为什么需要它？
-传统做法：想做一个"团队竞技模式"和一个"个人竞技模式"，得写两个 GameMode 子类，代码大量重复。
-
-Lyra 做法：
-- 写一套通用的 GameMode / GameState 代码
-- 用不同的 **ExperienceDefinition 数据资产** 描述差异（启用哪些插件、用什么 Pawn、执行哪些 Action）
-- 同一套代码 + 不同配置 = 不同玩法模式
-
-## 核心文件清单（10个）
-
-| 文件 | 类型 | 干什么 |
-|------|------|--------|
-| `LyraExperienceDefinition.h/.cpp` | DataAsset | **体验定义**——一份配置文件，描述这局游戏要什么 |
-| `LyraExperienceManagerComponent.h/.cpp` | GameStateComponent | **体验管理器**——挂在 GameState 上，负责加载/激活/卸载体验 |
-| `LyraExperienceManager.h/.cpp` | EngineSubsystem | **体验管理器（引擎级）**——处理多 PIE 会话的插件引用计数 |
-| `LyraExperienceActionSet.h/.cpp` | DataAsset | **Action 集合**——可复用的 Action 组合，被 Experience 引用 |
-| `LyraGameMode.h/.cpp` | GameMode | **游戏模式**——玩家登录、出生、复活 |
-| `LyraGameState.h/.cpp` | GameState | **游戏状态**——持有 ExperienceManagerComponent |
-| `LyraWorldSettings.h/.cpp` | WorldSettings | **关卡设置**——指定这张地图默认用哪个 Experience |
-| `LyraUserFacingExperienceDefinition.h/.cpp` | DataAsset | **面向玩家的体验定义**——带 UI 标题/图标/描述 |
-| `LyraBotCreationComponent.h/.cpp` | GameStateComponent | **Bot 创建组件**——自动创建 AI 机器人 |
-| `AsyncAction_ExperienceReady.h/.cpp` | AsyncAction | **蓝图异步动作**——等待 Experience 加载完毕 |
-
-## 完整工作流程（时间线）
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ 1. 游戏启动 / 进入地图                                            │
-│    ↓                                                             │
-│ 2. ALyraGameMode::InitGame()                                     │
-│    → 下一帧调用 HandleMatchAssignmentIfNotExpectingOne()          │
-│    → 按优先级决定用哪个 Experience：                               │
-│      OptionsString > DeveloperSettings(PIE) > 命令行              │
-│      > WorldSettings > 专用服务器 > 默认值                        │
-│    ↓                                                             │
-│ 3. OnMatchAssignmentGiven(ExperienceId)                          │
-│    → 找到 GameState 上的 ExperienceManagerComponent               │
-│    → 调用 SetCurrentExperience(ExperienceId)                     │
-│    ↓                                                             │
-│ 4. ExperienceManagerComponent::StartExperienceLoad()             │
-│    状态: Unloaded → Loading                                      │
-│    → 预加载 Experience 及其 ActionSets 的资源 Bundle              │
-│    ↓                                                             │
-│ 5. OnExperienceLoadComplete()                                    │
-│    状态: Loading → LoadingGameFeatures                           │
-│    → 收集所有需要的 GameFeature 插件 URL                          │
-│    → 逐个调用 LoadAndActivateGameFeaturePlugin()                 │
-│    ↓                                                             │
-│ 6. OnGameFeaturePluginLoadComplete() (每个插件完成回调)           │
-│    → 计数 -1，全部完成后进入下一步                                │
-│    ↓                                                             │
-│ 7. OnExperienceFullLoadCompleted()                               │
-│    状态: LoadingGameFeatures → ExecutingActions → Loaded         │
-│    → 执行所有 Action（OnGameFeatureRegistering/Loading/Activating）│
-│    → 广播 OnExperienceLoaded 委托（高优先级→普通→低优先级）       │
-│    ↓                                                             │
-│ 8. ALyraGameMode::OnExperienceLoaded()                           │
-│    → 为已经在场的玩家生成 Pawn                                    │
-│    → 后续新进来的玩家由 HandleStartingNewPlayer 处理              │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-## Experience 加载状态机
-
-```
-Unloaded ──→ Loading ──→ LoadingGameFeatures ──→ ExecutingActions ──→ Loaded
-                                                              ↑            │
-                                                              │            ↓
-                                                    (可选chaos延迟)   Deactivating ──→ Unloaded
-```
-
-枚举定义（`LyraExperienceManagerComponent.h`）：
-```cpp
-enum class ELyraExperienceLoadState
-{
-    Unloaded,           // 未加载
-    Loading,            // 正在加载资源
-    LoadingGameFeatures,// 正在加载 GameFeature 插件
-    LoadingChaosTestingDelay, // 混沌测试延迟（调试用）
-    ExecutingActions,   // 正在执行 Action
-    Loaded,             // 完全加载完毕
-    Deactivating        // 正在卸载
-};
-```
-
-## 谁需要什么？（依赖关系）
-
-```
-ALyraGameMode
-  ├── 依赖 ALyraGameState（构造函数里指定 GameStateClass）
-  ├── 依赖 ULyraExperienceManagerComponent（从 GameState 上找）
-  ├── 依赖 ULyraExperienceDefinition（通过 AssetManager 加载）
-  └── 依赖 ULyraPawnData（从 Experience 里拿 DefaultPawnData）
-
-ALyraGameState
-  ├── 持有 ULyraExperienceManagerComponent（子对象）
-  └── 实现 IAbilitySystemInterface（GameState 级别的全局 ASC）
-
-ULyraExperienceDefinition（DataAsset，策划在编辑器里配）
-  ├── TArray<FString> GameFeaturesToEnable    ← 要启用的插件名列表
-  ├── TObjectPtr<ULyraPawnData> DefaultPawnData ← 默认 Pawn 数据
-  ├── TArray<UGameFeatureAction*> Actions      ← 要执行的 Action 列表
-  └── TArray<ULyraExperienceActionSet*> ActionSets ← 引用的 Action 集合
-```
-
-## 对你项目的启发
-你的 `ue5_lyra` 项目目前不需要完整的 Experience 系统（那是多人在线游戏才需要的），但你可以借鉴：
-1. **数据驱动思想**：用 DataAsset 配置玩法参数，而不是硬编码
-2. **GameFeature 插件机制**：功能模块化，按需启用
-3. **Action 生命周期**：Registering → Loading → Activating → Deactivating → Unregistering
+> **Experience 系统是 Lyra 的核心架构——用数据驱动替代继承，让同一套 C++ 代码通过不同配置组合出多种游戏模式。**
 
 ---
 
-## 本目录文件导航
+## 你会学到什么
 
-| # | 文件/文件夹 | 内容 |
-|---|-------------|------|
-| 01 | [为什么需要Experience系统](01_为什么需要Experience系统/README.md) | 传统 vs Lyra 对比 + **相关源码**（含注释） |
-| 02 | [核心文件清单](02_核心文件清单.md) | 10个类按职责分类 |
-| 03 | [完整工作流程时间线](03_完整工作流程时间线.md) | 8步流程逐条详解 |
-| 04 | [加载状态机](04_加载状态机.md) | 7个状态 + Chaos Testing |
-| 05 | [依赖关系图](05_依赖关系图.md) | 类依赖 + 生命周期 + 数据流 |
+本教程按以下顺序逐步深入，建议按编号阅读：
+
+| 序号 | 主题 | 核心问题 |
+|------|------|----------|
+| 01 | [为什么需要 Experience 系统](./1.1.1.1_为什么需要Experience系统/) | 传统做法有什么问题？Lyra 怎么解决的？ |
+| 02 | [核心文件清单](./1.1.1.2_核心文件清单/) | 十几个文件各司什么职责？谁加载谁执行？ |
+| 03 | [完整工作流程时间线](./1.1.1.3_完整工作流程时间线/) | 从游戏启动到玩家拥有角色，经历了哪些步骤？ |
+| 04 | [加载状态机](./1.1.1.4_加载状态机/) | Experience 有哪些加载状态？Chaos Testing 是什么？ |
+| 05 | [依赖关系图](./1.1.1.5_依赖关系图/) | 类与类之间怎么依赖？数据怎么流转？ |
 
 ---
 
-> 📂 相关文件路径：`Source/LyraGame/GameModes/`
+## 学习路线图
+
+```
+01 为什么需要？          ← 理解动机（传统 vs Lyra）
+    │
+    ▼
+02 有哪些文件？          ← 建立地图（10 个类按职责分类）
+    │
+    ▼
+03 怎么跑起来的？        ← 理解流程（8 步时间线）
+    │
+    ▼
+04 有哪些状态？          ← 理解细节（7 个状态 + 异常处理）
+    │
+    ▼
+05 谁依赖谁？            ← 形成全局观（类依赖 + 数据流）
+```
+
+---
+
+## 涉及的核心类速查
+
+| 类名 | 类型 | 一句话职责 |
+|------|------|-----------|
+| `ULyraExperienceDefinition` | 数据资产 | 配置表：插件列表 + Pawn 数据 + Action 列表 |
+| `ULyraExperienceManagerComponent` | ActorComponent | 加载器：挂在 GameState 上，异步加载 Experience |
+| `ULyraExperienceManager` | UObject | 执行器：被 Component 委托，实际执行加载 |
+| `ULyraExperienceActionSet` | 数据资产 | 可复用的 Action 组合包 |
+| `ALyraGameState` | GameState | 承载 ExperienceManagerComponent |
+| `ALyraGameMode` | GameMode | 读取 Experience 决定 Pawn 类型 |
+| `ALyraWorldSettings` | WorldSettings | 关卡里配置的默认 Experience |
+| `ULyraUserFacingExperienceDefinition` | 数据资产 | 主菜单显示的玩法列表 |
+| `ULyraBotCreationComponent` | ActorComponent | 根据 Experience 动态创建 AI Bot |
+| `UAsyncAction_ExperienceReady` | 蓝图节点 | 蓝图中等待 Experience 加载完成 |
