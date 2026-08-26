@@ -45,3 +45,12 @@
 - `UDebugHelper::DebugLog(Message, Duration, Color)` 同时输出到屏幕 + 日志
 - 颜色约定：受伤/扣血=Red，治疗/加血=Green，状态切换/信息=Yellow
 - 该方法基于 `UBlueprintFunctionLibrary`，蓝图也能调用
+
+## 学习资源体系（2026-08-26 更新）
+- **总纲**：`AI_Learning_Notes/0_总纲_AI游戏开发教程设计.md` — 7天教程规划 + ue5_lyra 实际进度追踪
+- **Lyra 源码解析**：`AI_Learning_Notes/1_Lyra项目结构/` — 21个子系统目录（1.1~1.21），每个子系统下有编号 md 文件 + 代码/ 文件夹
+  - 书写规范见 `1.0_LyraStarterGame完整分区解析.md`：不建子文件夹、md 平铺+编号前缀、代码统一放 `代码/`、关键片段可贴但要指引去看完整源码、代码文件必须加中文注释
+- **外部参考源码**：`e:\ue5\LyraStarterGame` — LyraStarterGame 完整 C++ 源码，搬相关文件时从这里读取
+- **Lyra 学习指南**：`Document/Lyra学习指南/` — 122篇详细教程（含图片），覆盖项目介绍→源码速览→各系统详解→GAS→武器→UI→动画等
+  - 有 .md 和 .docx 两种格式，图片在 `Pictures/` 子目录
+- **教学时应综合利用**：总纲定方向 → Lyra源码解析学架构 → 学习指南查细节 → LyraStarterGame 看真实代码
