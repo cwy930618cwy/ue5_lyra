@@ -10,17 +10,8 @@
 
 ```cpp
 // ❌ 传统做法：每个模式一个类，代码大量重复
-class ATeamGameMode : public AGameModeBase {
-    // 队伍计分逻辑...
-    // 队伍 UI 生成...
-    // 但 90% 的代码和其他模式一样
-};
-
-class APersonalGameMode : public AGameModeBase {
-    // 个人计分逻辑...
-    // 个人 UI 生成...
-    // 又重复了一遍
-};
+class ATeamGameMode : public AGameModeBase { /* 队伍计分 + UI ... */ };
+class APersonalGameMode : public AGameModeBase { /* 个人计分 + UI ... */ };
 ```
 
 **Lyra 做法**：只写一套 C++ 代码（`ALyraGameMode`），然后创建不同的**数据资产实例**来配置差异。
@@ -63,7 +54,7 @@ class APersonalGameMode : public AGameModeBase {
 
 ---
 
-### 1. `LyraExperienceDefinition.h` — 配置表的"骨架"
+### 1. `ULyraExperienceDefinition` — 配置表的"骨架"
 
 **继承链**：`UObject → UDataAsset → UPrimaryDataAsset → ULyraExperienceDefinition`
 
@@ -71,178 +62,47 @@ class APersonalGameMode : public AGameModeBase {
 
 #### 关键字段
 
-| 行号 | 字段 | 类型 | 说明 |
-|------|------|------|------|
-| 第 65~66 行 | `GameFeaturesToEnable` | `TArray<FString>` | 要启用的 GameFeature 插件列表（如 `["ShooterCore", "Teams"]`） |
-| 第 74~75 行 | `DefaultPawnData` | `TObjectPtr<const ULyraPawnData>` | 默认 Pawn 数据（决定玩家用什么角色） |
-| 第 83~84 行 | `Actions` | `TArray<TObjectPtr<UGameFeatureAction>>` | 内联 Action 列表（Instanced + EditInlineNew，专属本 Experience） |
-| 第 90~91 行 | `ActionSets` | `TArray<TObjectPtr<ULyraExperienceActionSet>>` | 引用的外部 ActionSet（可复用组合包） |
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `GameFeaturesToEnable` | `TArray<FString>` | 要启用的 GameFeature 插件列表（如 `["ShooterCore", "Teams"]`） |
+| `DefaultPawnData` | `TObjectPtr<const ULyraPawnData>` | 默认 Pawn 数据（决定玩家用什么角色） |
+| `Actions` | `TArray<TObjectPtr<UGameFeatureAction>>` | 内联 Action 列表（Instanced + EditInlineNew，专属本 Experience） |
+| `ActionSets` | `TArray<TObjectPtr<ULyraExperienceActionSet>>` | 引用的外部 ActionSet（可复用组合包） |
 
-#### 完整头文件
-
-```cpp
-// Copyright Epic Games, Inc. All Rights Reserved.
-
-#pragma once
-
-#include "Engine/DataAsset.h"
-#include "LyraExperienceDefinition.generated.h"
-
-// 前向声明：告诉编译器这些类存在，但不需要完整定义（避免循环引用）
-class UGameFeatureAction;        // GameFeature 动作基类
-class ULyraPawnData;             // Pawn 数据资产（定义角色配置）
-class ULyraExperienceActionSet;  // Action 集合（可复用的 Action 组合）
-
-/**
- * 体验定义（Experience Definition）
- * 
- * 一份"游戏模式配置文件"，策划在编辑器里创建实例、填好参数，就定义了一种玩法。
- * 
- * 三个关键字段：
- * - GameFeaturesToEnable: 要启用的插件列表
- * - DefaultPawnData: 玩家用什么角色
- * - Actions/ActionSets: 要执行的逻辑
- */
-UCLASS(BlueprintType, Const)  // BlueprintType=蓝图可见, Const=运行时不可修改
-class ULyraExperienceDefinition : public UPrimaryDataAsset
-{
-	GENERATED_BODY()
-
-public:
-	ULyraExperienceDefinition();
-
-	//~UObject interface
-#if WITH_EDITOR
-	virtual EDataValidationResult IsDataValid(class FDataValidationContext& Context) const override;
-#endif
-	//~End of UObject interface
-
-	//~UPrimaryDataAsset interface
-#ifdef WITH_EDITORONLY_DATA
-	virtual void UpdateAssetBundleData() override;
-#endif
-	//~End of UPrimaryDataAsset interface
-
-public:
-	// ① 要启用的 GameFeature 插件列表
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Lyra|Experience")
-	TArray<FString> GameFeaturesToEnable;
-
-	// ② 默认 Pawn 数据
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Lyra|Experience")
-	TObjectPtr<const ULyraPawnData> DefaultPawnData;
-
-	// ③ 内联 Action 列表（Instanced=每个实例独立, EditInlineNew=直接在详情面板添加子对象）
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Instanced, EditInlineNew, Category = "Lyra|Experience")
-	TArray<TObjectPtr<UGameFeatureAction>> Actions;
-
-	// ④ 引用的 ActionSet（可复用的外部 Action 组合包）
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Lyra|Experience")
-	TArray<TObjectPtr<ULyraExperienceActionSet>> ActionSets;
-};
-```
+> 📄 完整头文件见 `../代码/LyraExperienceDefinition.h`
 
 ---
 
-### 2. `LyraExperienceDefinition.cpp` — 配置验证
+### 2. `ULyraExperienceDefinition::IsDataValid()` — 配置验证
 
-这个文件做了两件重要的事：
+这个函数做了两件重要的事：
 
-1. **数据验证**（`IsDataValid`）：确保配置不出错——Action 不能为空、不允许"蓝图的蓝图"继承
+1. **数据验证**：确保 Action 不为空、不允许"蓝图的蓝图"继承
 2. **资源收集**（`UpdateAssetBundleData`）：告诉引擎这个 Experience 需要哪些资源
 
+关键验证逻辑：
+
 ```cpp
-// Copyright Epic Games, Inc. All Rights Reserved.
-
-#include "LyraExperienceDefinition.h"
-#include "LyraExperienceActionSet.h"
-#include "GameFeatureAction.h"
-#include "LyraLogChannels.h"
-#include "Misc/DataValidation.h"
-
-#define LOCTEXT_NAMESPACE "LyraExperienceDefinition"
-
-ULyraExperienceDefinition::ULyraExperienceDefinition()
+// 禁止"蓝图的蓝图"继承——应用 ActionSet 组合而非蓝图继承链
+if (!Action->GetClass()->IsNative())
 {
-	// 空实现，所有配置通过编辑器 Details 面板完成
+    const UClass* SuperClass = Action->GetClass()->GetSuperClass();
+    if ((SuperClass != nullptr) && !SuperClass->IsNative())
+    {
+        Context.AddError(/* "Use ActionSet composition instead of BP inheritance." */);
+    }
 }
-
-#if WITH_EDITOR
-
-EDataValidationResult ULyraExperienceDefinition::IsDataValid(FDataValidationContext& Context) const
-{
-	EDataValidationResult Result = CombineDataValidationResults(
-		Super::IsDataValid(Context), EDataValidationResult::Valid);
-
-	int32 ActionIndex = 0;
-	for (const TObjectPtr<UGameFeatureAction>& Action : Actions)
-	{
-		// 检查 1：Action 不能为空指针
-		if (Action == nullptr)
-		{
-			Context.AddError(FText::Format(
-				LOCTEXT("NullAction", "Actions[{0}] is null"),
-				FText::AsNumber(ActionIndex)));
-			Result = EDataValidationResult::Invalid;
-		}
-		else
-		{
-			// 检查 2：递归验证每个 Action 的子对象
-			Result = CombineDataValidationResults(Result, Action->IsDataValid(Context));
-		}
-
-		// 检查 3：禁止"蓝图的蓝图"继承——应用组合而非继承
-		if (!Action->GetClass()->IsNative())
-		{
-			const UClass* SuperClass = Action->GetClass()->GetSuperClass();
-			if ((SuperClass != nullptr) && !SuperClass->IsNative())
-			{
-				Context.AddError(FText::Format(
-					LOCTEXT("NonNativeParent",
-						"Actions[{0}] has a non-native parent class '{1}'. "
-						"Use ActionSet composition instead of BP inheritance."),
-					FText::AsNumber(ActionIndex),
-					SuperClass->GetDisplayName()));
-				Result = EDataValidationResult::Invalid;
-			}
-		}
-
-		ActionIndex++;
-	}
-
-	return Result;
-}
-
-#endif // WITH_EDITOR
-
-#ifdef WITH_EDITORONLY_DATA
-
-void ULyraExperienceDefinition::UpdateAssetBundleData()
-{
-	Super::UpdateAssetBundleData();
-
-	// 遍历所有 Action，收集额外资源需求
-	for (const TObjectPtr<UGameFeatureAction>& Action : Actions)
-	{
-		if (Action != nullptr)
-		{
-			Action->AddGameFeatureResources(*this);
-		}
-	}
-}
-
-#endif // WITH_EDITORONLY_DATA
-
-#undef LOCTEXT_NAMESPACE
 ```
 
 **验证逻辑要点**：
 - 递归验证：不仅检查 Action 本身，还检查 Action 内部的子对象
 - 禁止"蓝图的蓝图"：如果 Action 是蓝图类，且它的父类也是蓝图类，报错。原因是要鼓励用 ActionSet 组合而非蓝图继承链
 
+> 📄 完整实现见 `../代码/LyraExperienceDefinition.cpp`
+
 ---
 
-### 3. `LyraGameMode.h` — 读取 Experience 的 GameMode
+### 3. `ALyraGameMode` — 读取 Experience 的 GameMode
 
 **核心职责**：
 1. 游戏启动时确定使用哪个 Experience
@@ -259,177 +119,35 @@ void ULyraExperienceDefinition::UpdateAssetBundleData()
 | `GetPawnDataForController()` | 从 Experience 中查找 Controller 对应的 PawnData |
 | `GetDefaultPawnClassForController_Implementation()` | 返回 Pawn 的类（由 Experience 配置决定） |
 
-```cpp
-// Copyright Epic Games, Inc. All Rights Reserved.
+#### Experience 选择优先级
 
-#pragma once
-
-#include "ModularGameMode.h"
-#include "LyraGameMode.generated.h"
-
-class ULyraExperienceDefinition;
-class ULyraPawnData;
-
-DECLARE_MULTICAST_DELEGATE_OneParam(FOnLyraExperienceLoaded,
-	const ULyraExperienceDefinition* /*Experience*/);
-
-/**
- * ALyraGameMode
- * 
- * 核心职责：
- * 1. 游戏启动时确定使用哪个 Experience
- * 2. Experience 加载完成后为在场玩家生成 Pawn
- * 3. 动态决定每个玩家的 Pawn 类型
- */
-UCLASS(Config = Game)
-class ALyraGameMode : public AModularGameMode
-{
-	GENERATED_BODY()
-
-public:
-	ALyraGameMode(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
-
-	//~AGameModeBase interface
-	virtual void InitGame(const FURL& URL, UGameInstance* GameInstance) override;
-	virtual UClass* GetDefaultPawnClassForController_Implementation(AController* InController) override;
-	virtual APawn* SpawnDefaultPawnAtTransform_Implementation(AController* NewPlayer, const FTransform& SpawnTransform) override;
-	virtual void HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer) override;
-	//~End of AGameModeBase interface
-
-	// Experience 加载完成的委托
-	FOnLyraExperienceLoaded OnExperienceLoadedDelegate;
-
-	// 获取当前加载的 Experience
-	const ULyraExperienceDefinition* GetCurrentExperience() const { return CurrentExperience; }
-
-protected:
-	// 处理 Match 分配（确定用哪个 Experience）
-	void HandleMatchAssignmentIfNotExpectingOne();
-
-	// Experience 加载完成回调
-	void OnExperienceLoaded(const ULyraExperienceDefinition* Experience);
-
-	// 从 Experience 中查找 Controller 对应的 PawnData
-	ULyraPawnData* GetPawnDataForController(AController* InController) const;
-
-	// 当前加载的 Experience
-	UPROPERTY(Transient)
-	TObjectPtr<const ULyraExperienceDefinition> CurrentExperience;
-};
+```
+WorldSettings.DefaultGameplayExperience  ← 最高优先（关卡级覆盖）
+        ↓ 如果没有
+命令行参数 -Experience=xxx                ← 调试用
+        ↓ 如果没有
+项目设置 DefaultGameModeExperience        ← 兜底默认值
 ```
 
----
-
-### 4. `LyraGameMode.cpp` — 核心流程实现
-
-#### 4.1 构造函数 — 注册 ExperienceManagerComponent
-
-```cpp
-ALyraGameMode::ALyraGameMode(const FObjectInitializer& ObjectInitializer)
-	: Super(ObjectInitializer)
-{
-	// 不在这里创建组件，GameState 上已经有 ExperienceManagerComponent
-}
-```
-
-#### 4.2 `InitGame()` — 触发 Experience 加载
-
-```cpp
-void ALyraGameMode::InitGame(const FURL& URL, UGameInstance* GameInstance)
-{
-	Super::InitGame(URL, GameInstance);
-
-	// 游戏初始化时，确定并加载 Experience
-	HandleMatchAssignmentIfNotExpectingOne();
-}
-```
-
-#### 4.3 `HandleMatchAssignmentIfNotExpectingOne()` — 确定用哪个 Experience
-
-按优先级查找：
-1. WorldSettings 里配置的 Experience（关卡级别）
-2. 命令行参数指定的 Experience
-3. 项目设置里的默认 Experience
-
-```cpp
-void ALyraGameMode::HandleMatchAssignmentIfNotExpectingOne()
-{
-	// 如果已经在加载中或已加载，跳过
-	if (CurrentExperience)
-	{
-		return;
-	}
-
-	// 从 GameState 上获取 ExperienceManagerComponent
-	if (ALyraGameState* GameState = GetGameState<ALyraGameState>())
-	{
-		if (ULyraExperienceManagerComponent* Component = GameState->FindComponentByClass<ULyraExperienceManagerComponent>())
-		{
-			// 委托给 Component 异步加载 Experience
-			Component->SetCurrentExperience(/* 从 WorldSettings 等来源获取 */ ...);
-		}
-	}
-}
-```
-
-#### 4.4 `OnExperienceLoaded()` — 加载完成后为在场玩家生成 Pawn
-
-```cpp
-void ALyraGameMode::OnExperienceLoaded(const ULyraExperienceDefinition* Experience)
-{
-	CurrentExperience = Experience;
-
-	// 广播委托（其他系统可以监听）
-	OnExperienceLoadedDelegate.Broadcast(Experience);
-
-	// 为所有已经存在的玩家生成 Pawn
-	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
-	{
-		APlayerController* PC = It->Get();
-		if (PC && !PC->GetPawn())
-		{
-			// 根据 Experience 配置生成 Pawn
-			SpawnDefaultPawnAtTransform(PC, PC->GetSpawnLocation());
-		}
-	}
-}
-```
-
-#### 4.5 `GetDefaultPawnClassForController_Implementation()` — 动态决定 Pawn 类型
+#### 关键代码：动态决定 Pawn 类型
 
 ```cpp
 UClass* ALyraGameMode::GetDefaultPawnClassForController_Implementation(AController* InController)
 {
-	// 从 Experience 配置中查找 PawnData
-	if (const ULyraPawnData* PawnData = GetPawnDataForController(InController))
-	{
-		if (PawnData->PawnClass)
-		{
-			// 用 Experience 配置的 Pawn 类型！
-			return PawnData->PawnClass;
-		}
-	}
-
-	// 回退到父类默认行为
-	return Super::GetDefaultPawnClassForController_Implementation(InController);
+    // 从 Experience 配置中查找 PawnData
+    if (const ULyraPawnData* PawnData = GetPawnDataForController(InController))
+    {
+        if (PawnData->PawnClass)
+        {
+            return PawnData->PawnClass;  // 用 Experience 配置的 Pawn 类型！
+        }
+    }
+    // 回退到父类默认行为
+    return Super::GetDefaultPawnClassForController_Implementation(InController);
 }
 ```
 
-#### 4.6 `GetPawnDataForController()` — 查找链
-
-```cpp
-ULyraPawnData* ALyraGameMode::GetPawnDataForController(AController* InController) const
-{
-	// 优先用 Experience 配置的 DefaultPawnData
-	if (CurrentExperience && CurrentExperience->DefaultPawnData)
-	{
-		return const_cast<ULyraPawnData*>(CurrentExperience->DefaultPawnData.Get());
-	}
-
-	// TODO: 后续可以通过 PlayerState 上的 PawnDataComponent 覆盖
-	return nullptr;
-}
-```
+> 📄 完整实现见 `../代码/LyraGameMode.h` 和 `../代码/LyraGameMode.cpp`
 
 ---
 
