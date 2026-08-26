@@ -248,7 +248,10 @@ void ABattleCharacter::BeginPlay()
     // 监听"攻击结束"事件，复位战斗状态
     AbilitySystemComponent->GenericGameplayEventCallbacks.FindOrAdd(
         FGameplayTag::RequestGameplayTag(FName("Event.Combat.AttackEnded"))
-    ).AddUObject(this, &ABattleCharacter::OnAttackEnded);
+    ).AddLambda([this](const FGameplayEventData* EventData)
+    {
+        SetCombatState(ECombatState::Idle);
+    });
 }
 
 // 设置玩家输入组件
@@ -385,13 +388,6 @@ void ABattleCharacter::SetCombatState(ECombatState NewState)
             }
         }
     }
-}
-
-// 攻击蒙太奇播放结束回调
-// .cpp 实现也加 const
-void ABattleCharacter::OnAttackEnded(const FGameplayEventData* EventData) const
-{
-    SetCombatState(ECombatState::Idle);
 }
 
 // 获取 ASC（其他类（比如敌人）要攻击本角色时需要拿到它） 

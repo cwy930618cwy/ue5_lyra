@@ -164,7 +164,4 @@ protected:
 
     // 显示所有属性（调试用）
     void ShowStats();
-
-    // 攻击结束事件处理（GA 发来，复位状态）
-    void OnAttackEnded(const FGameplayEventData* EventData) const;
 };

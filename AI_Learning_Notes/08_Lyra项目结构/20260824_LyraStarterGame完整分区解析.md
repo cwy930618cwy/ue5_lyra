@@ -1,0 +1,556 @@
+# LyraStarterGame 完整分区解析
+
+> 生成日期：2026-08-24  
+> 基于 UE5.5 LyraStarterGame 源码深度阅读  
+> 目的：从 0 理解 Lyra 项目整体架构，按功能区域划分
+
+---
+
+## 📁 项目顶层结构
+
+```
+LyraStarterGame/
+├── Source/LyraGame/          ← 核心游戏代码（27个子目录）
+├── Source/LyraEditor/        ← 编辑器扩展代码
+├── Plugins/                  ← 内置插件（13个）+ GameFeature插件
+├── Content/                  ← 美术资源、蓝图、地图
+├── Config/                   ← 配置文件（.ini）
+└── LyraStarterGame.uproject  ← 项目描述文件
+```
+
+---
+
+## 🎮 一、游戏模式与体验系统（GameModes / Experience）
+
+**路径**：`Source/LyraGame/GameModes/`
+
+### 核心概念
+Lyra 采用 **Experience（体验）系统** 实现数据驱动的游戏模式切换，而非传统的硬编码 GameMode。
+
+### 关键类
+
+| 类名 | 职责 |
+|------|------|
+| `ALyraGameMode` | 游戏模式基类，处理玩家登录、出生、死亡复活 |
+| `ALyraGameState` | 游戏状态，持有 `ExperienceManagerComponent` |
+| `ULyraExperienceDefinition` | **体验定义**（PrimaryDataAsset），配置要启用的 GameFeature、默认 PawnData、Actions 列表 |
+| `ULyraExperienceManagerComponent` | 挂在 GameState 上，负责加载/激活/卸载 Experience |
+| `ULyraExperienceActionSet` | 可复用的 Action 集合，组合到 Experience 中 |
+| `UGameFeatureAction` | GameFeature 动作基类，在 Experience 生命周期各阶段执行 |
+| `ALyraWorldSettings` | 关卡设置，可指定该关卡使用的 Experience |
+| `ALyraUserFacingExperienceDefinition` | 面向用户的体验定义（带显示名称、图标等 UI 信息） |
+| `ALyraBotCreationComponent` | Bot 创建组件，根据配置自动生成 AI 机器人 |
+
+### 工作流程
+```
+1. WorldSettings 指定 ExperienceID
+2. GameState 上的 ExperienceManagerComponent 加载 ExperienceDefinition
+3. 启用 GameFeaturesToEnable 中的 GameFeature 插件
+4. 执行 Actions 列表（如添加组件、生成 Actor）
+5. 使用 DefaultPawnData 生成玩家 Pawn
+```
+
+---
+
+## 🧑‍🤝‍🧑 二、组队系统（Teams）
+
+**路径**：`Source/LyraGame/Teams/`
+
+### 核心概念
+Lyra 的组队系统是 **GameFeature 插件形式** 提供的（`GameFeaturePlugin/ShooterTests` 或独立插件），支持动态组队、队伍颜色显示、队伍胜负判定。
+
+### 关键类
+
+| 类名 | 职责 |
+|------|------|
+| `ULyraTeamSubsystem` | 队伍子系统（WorldSubsystem），管理所有队伍信息 |
+| `ALyraTeamInfoBase` | 队伍信息基类（Actor），存储队伍公共/私有数据 |
+| `FLyraTeamPublicInfo` | 队伍公共信息（所有玩家可见，如队伍名、分数） |
+| `FLyraTeamPrivateInfo` | 队伍私有信息（仅队友可见，如战术标记） |
+| `ILyraTeamAgentInterface` | 队伍代理接口，PlayerState/Pawn 实现此接口来关联队伍 |
+| `ULyraTeamCreationComponent` | 队伍创建组件，处理玩家加入/离开队伍逻辑 |
+| `ULyraTeamDisplayAsset` | 队伍显示资源（队标、颜色、名称等 UI 资源） |
+| `ULyraTeamStatics` | 队伍静态工具函数（获取队伍 ID、判断是否同队等） |
+| `UAsyncAction_ObserveTeam` | 异步动作：监听队伍变化 |
+| `UAsyncAction_ObserveTeamColors` | 异步动作：监听队伍颜色变化 |
+| `ULyraTeamCheats` | 队伍相关作弊命令 |
+
+### 设计特点
+- **公私分离**：PublicInfo 所有人可见，PrivateInfo 仅队友可见
+- **接口解耦**：通过 `ILyraTeamAgentInterface` 让任意 Actor 关联队伍
+- **事件驱动**：AsyncAction 提供蓝图友好的队伍变化监听
+
+---
+
+## ⚔️ 三、GAS 技能系统（AbilitySystem）
+
+**路径**：`Source/LyraGame/AbilitySystem/`
+
+### 子目录结构
+```
+AbilitySystem/
+├── Abilities/           ← 具体技能实现（GA_*.h/cpp）
+├── Attributes/          ← 属性集（AttributeSet）
+├── Executions/          ← GE 执行计算（伤害公式等）
+├── Phases/              ← 技能阶段（多段技能）
+└── [根目录文件]         ← ASC、AbilitySet、Tag 映射等
+```
+
+### 关键类
+
+| 类名 | 职责 |
+|------|------|
+| `ULyraAbilitySystemComponent` | Lyra 的 ASC，扩展了输入绑定、技能激活策略 |
+| `ULyraGameplayAbility` | GA 基类，定义 InstancingPolicy/NetExecutionPolicy/ActivationGroup |
+| `ULyraAbilitySet` | **技能集 DataAsset**，批量授予 GA + GE + AttributeSet |
+| `ULyraAbilityTagRelationshipMapping` | Tag 关系映射（如哪些状态会阻止/取消技能） |
+| `ULyraGlobalAbilitySystem` | 全局能力系统（用于非 Pawn 实体的 GE 应用） |
+| `ALyraAbilitySourceInterface` | 能力来源接口（追踪伤害来源） |
+| `FLyraGameplayEffectContext` | 自定义 GE 上下文（携带额外数据） |
+| `ULyraGameplayCueManager` | GameplayCue 管理器 |
+| `ULyraGameplayAbilityTargetData_SingleTargetHit` | 单目标命中目标数据 |
+| `ALyraTaggedActor` | 带 GameplayTag 的 Actor 基类 |
+
+### Abilities 子目录（具体技能）
+- `LyraGameplayAbility_Jump.cpp` — 跳跃
+- `LyraGameplayAbility_Reset.cpp` — 重置
+- `LyraGameplayAbility_Crouch.cpp` — 蹲伏
+- `LyraGameplayAbility_AutoRun.cpp` — 自动跑
+- `LyraGameplayAbility_PluginBound.cpp` — 插件绑定技能
+- `PainfulDeaths/` — 痛苦死亡相关技能
+- `Tasks/` — 自定义 AbilityTask
+
+### Attributes 子目录
+- `LyraHealthSet.h` — 生命值属性集（Health/MaxHealth/Damage/Healing）
+- `LyraCombatSet.h` — 战斗属性集
+
+### Executions 子目录
+- `LyraDamageExecution.h` — 伤害计算执行
+- `LyraHealExecution.h` — 治疗计算执行
+
+### Phases 子目录
+- `LyraAbilityPhase.h` — 技能阶段定义（多段跳、连击等）
+- `LyraAbilitySimplePhases.h` — 简单阶段
+
+---
+
+## 🎯 四、输入系统（Input）
+
+**路径**：`Source/LyraGame/Input/`
+
+### 关键类
+
+| 类名 | 职责 |
+|------|------|
+| `ULyraInputConfig` | 输入配置 DataAsset，定义 NativeInputActions + AbilityInputActions |
+| `ULyraInputComponent` | Lyra 输入组件，提供 `BindNativeAction` / `BindAbilityActions` 模板方法 |
+| `ULyraInputModifiers` | 输入修饰器（死区、反转、灵敏度曲线等） |
+| `ULyraInputUserSettings` | 用户输入设置（键位绑定、灵敏度等） |
+| `ULyraPlayerMappableKeyProfile` | 按键映射配置 |
+| `ULyraAimSensitivityData` | 瞄准灵敏度数据 |
+
+### 输入绑定流程
+```
+1. InputConfig 定义 InputAction → GameplayTag 映射
+2. LyraInputComponent::BindAbilityActions() 将 InputTag 绑定到 ASC
+3. 玩家按下按键 → InputAction 触发 → ASC->TryActivateAbilitiesByTag()
+4. 对应 GA 被激活
+```
+
+---
+
+## 🧍 五、角色与 Pawn 系统（Character / Pawn）
+
+**路径**：`Source/LyraGame/Character/`
+
+### 继承体系
+```
+APawn
+ └── ALyraPawn                    ← 最小化 Pawn 基类
+      └── ALyraCharacter          ← 带 CharacterMovement 的角色基类
+           └── ALyraCharacterWithAbilities  ← 带 GAS 能力的角色
+                └── [具体英雄/敌人实现]
+```
+
+### 关键类
+
+| 类名 | 职责 |
+|------|------|
+| `ALyraPawn` | Pawn 基类，实现 `ILyraTeamAgentInterface` |
+| `ALyraCharacter` | 角色基类，集成 CMC、相机、输入 |
+| `ALyraCharacterWithAbilities` | 带 ASC 的角色，实现 `IAbilitySystemInterface` |
+| `ULyraPawnExtensionComponent` | **Pawn 扩展组件**，协调各组件初始化顺序（InitState 四阶段） |
+| `ULyraHeroComponent` | 英雄组件，处理输入绑定、相机切换 |
+| `ULyraHealthComponent` | 生命值组件，封装 HealthSet 访问、死亡处理 |
+| `ULyraCharacterMovementComponent` | 自定义移动组件 |
+| `ULyraPawnData` | **Pawn 数据资产**，定义 PawnClass + AbilitySets + InputConfig + CameraMode |
+
+### InitState 四阶段初始化
+```
+Spawned → DataAvailable → DataInitialized → GameplayReady
+   ↑            ↑               ↑                ↑
+ 出生     数据就绪      数据初始化完成      游戏准备完毕
+```
+由 `PawnExtensionComponent` 协调各组件按序推进状态。
+
+---
+
+## 👤 六、玩家系统（Player）
+
+**路径**：`Source/LyraGame/Player/`
+
+### 关键类
+
+| 类名 | 职责 |
+|------|------|
+| `ALyraPlayerController` | 玩家控制器，处理输入、HUD、相机 |
+| `ALyraPlayerState` | 玩家状态，**持有 ASC**（Lyra 把 ASC 放 PlayerState 而非 Character） |
+| `ALyraLocalPlayer` | 本地玩家，处理 UI 输入、设置 |
+| `ALyraPlayerBotController` | Bot 控制器，AI 控制逻辑 |
+| `ALyraPlayerStart` | 玩家出生点，支持队伍/标签过滤 |
+| `ULyraPlayerSpawningManagerComponent` | 玩家生成管理组件 |
+| `ULyraCheatManager` | 作弊管理器 |
+| `ALyraDebugCameraController` | 调试相机控制器 |
+
+### 重要设计
+- **ASC 放在 PlayerState**：断线重连时 GE/属性保留，Pawn 销毁重建不影响能力系统
+
+---
+
+## 🔫 七、武器系统（Weapons）
+
+**路径**：`Source/LyraGame/Weapons/`
+
+### 关键类
+
+| 类名 | 职责 |
+|------|------|
+| `ULyraWeaponInstance` | 武器实例，运行时武器数据 |
+| `ULyraRangedWeaponInstance` | 远程武器实例，弹道、后坐力计算 |
+| `ULyraGameplayAbility_RangedWeapon` | 远程武器射击技能 |
+| `ULyraWeaponStateComponent` | 武器状态组件（当前武器、弹药、换弹） |
+| `ALyraWeaponSpawner` | 武器生成器，关卡中生成可拾取武器 |
+| `ULyraDamageLogDebuggerComponent` | 伤害日志调试组件 |
+| `ULyraWeaponDebugSettings` | 武器调试设置 |
+| `UInventoryFragment_ReticleConfig` | 准星配置 Fragment |
+
+---
+
+## 🎒 八、物品与库存系统（Inventory）
+
+**路径**：`Source/LyraGame/Inventory/`
+
+### 核心概念
+采用 **Fragment 组合模式**：物品定义（Definition）→ 物品实例（Instance）→ Fragment 数组组合功能。
+
+### 关键类
+
+| 类名 | 职责 |
+|------|------|
+| `ULyraInventoryItemDefinition` | 物品定义 DataAsset，包含 Fragments 数组 |
+| `ULyraInventoryItemInstance` | 物品实例，运行时数据 |
+| `ULyraInventoryManagerComponent` | 库存管理组件，增删改查物品 |
+| `IPickupable` | 可拾取接口 |
+| `UInventoryFragment_EquippableItem` | 装备 Fragment |
+| `UInventoryFragment_PickupIcon` | 拾取图标 Fragment |
+| `UInventoryFragment_QuickBarIcon` | 快捷栏图标 Fragment |
+| `UInventoryFragment_SetStats` | 属性修改 Fragment |
+
+### Fragment 组合示例
+```
+InventoryItemDefinition (DataAsset)
+├── Fragment: EquippableItem    → 可装备到武器槽
+├── Fragment: PickupIcon        → 拾取时显示的图标
+├── Fragment: QuickBarIcon      → 快捷栏显示
+└── Fragment: SetStats          → 附加属性加成
+```
+
+---
+
+## 🛡️ 九、装备系统（Equipment）
+
+**路径**：`Source/LyraGame/Equipment/`
+
+### 关键类
+
+| 类名 | 职责 |
+|------|------|
+| `ULyraEquipmentDefinition` | 装备定义 DataAsset，配置 AbilitySets + ActorsToSpawn |
+| `ULyraEquipmentInstance` | 装备实例 |
+| `ULyraEquipmentManagerComponent` | 装备管理组件，处理装备/卸下逻辑 |
+| `ULyraGameplayAbility_FromEquipment` | 装备赋予的技能基类 |
+| `ULyraPickupDefinition` | 拾取物定义 |
+| `ULyraQuickBarComponent` | 快捷栏组件 |
+
+### 装备流程
+```
+1. 玩家拾取 EquipmentDefinition
+2. EquipmentManagerComponent 创建 EquipmentInstance
+3. 授予 Definition 中配置的 AbilitySets
+4. 生成 ActorsToSpawn（武器 Mesh、特效等）
+5. 玩家获得新能力
+```
+
+---
+
+## 🖥️ 十、UI 系统（UI）
+
+**路径**：`Source/LyraGame/UI/`
+
+### 子目录结构
+```
+UI/
+├── Basic/              ← 基础 UI 元素
+├── Common/             ← 通用 UI 组件（血条、准星、提示等）
+├── Foundation/         ← UI 框架基础（Widget 基类、布局）
+├── Frontend/           ← 主菜单/大厅 UI
+├── IndicatorSystem/    ← 指示器系统（队友标记、目标指示）
+├── PerformanceStats/   ← 性能统计 UI
+├── Subsystem/          ← UI 子系统
+├── Weapons/            ← 武器相关 UI（准星、弹药）
+├── LyraHUD.cpp         ← HUD 主类
+├── LyraHUDLayout.cpp   ← HUD 布局
+├── LyraActivatableWidget.cpp  ← 可激活 Widget 基类
+├── LyraJoystickWidget.cpp     ← 摇杆 Widget
+├── LyraSettingScreen.cpp      ← 设置界面
+├── LyraSimulatedInputWidget.cpp ← 模拟输入 Widget（触屏）
+├── LyraTouchRegion.cpp        ← 触屏区域
+└── LyraTaggedWidget.cpp       ← 带 Tag 的 Widget
+```
+
+### 关键类
+
+| 类名 | 职责 |
+|------|------|
+| `ULyraHUD` | HUD 主类，管理所有 HUD Widget |
+| `ULyraHUDLayout` | HUD 布局容器 |
+| `ULyraActivatableWidget` | 可激活/停用 Widget 基类（CommonUI 集成） |
+| `ULyraTaggedWidget` | 带 GameplayTag 的 Widget，支持条件显示 |
+| `ULyraJoystickWidget` | 虚拟摇杆（触屏设备） |
+| `ULyraSettingScreen` | 设置界面 |
+| `ULyraGameViewportClient` | Viewport 客户端，处理 UI 输入 |
+
+---
+
+## ⚙️ 十一、系统层（System）
+
+**路径**：`Source/LyraGame/System/`
+
+### 关键类
+
+| 类名 | 职责 |
+|------|------|
+| `ULyraAssetManager` | 资源管理器，异步加载、Bundle 管理 |
+| `ULyraGameInstance` | 游戏实例，全局单例 |
+| `ULyraGameEngine` | 游戏引擎扩展 |
+| `ULyraGameSession` | 游戏会话，在线匹配、服务器管理 |
+| `ULyraReplicationGraph` | 复制图，优化网络同步 |
+| `ULyraSignificanceManager` | 重要性管理器，根据距离调整更新频率 |
+| `FGameplayTagStack` | GameplayTag 栈，计数用 |
+| `ULyraDevelopmentStatics` | 开发工具静态函数 |
+| `ULyraSystemStatics` | 系统静态函数 |
+| `ULyraActorUtilities` | Actor 工具函数 |
+
+---
+
+## 🤝 十二、交互系统（Interaction）
+
+**路径**：`Source/LyraGame/Interaction/`
+
+### 子目录结构
+```
+Interaction/
+├── Abilities/    ← 交互相关技能
+├── Tasks/        ← 交互 AbilityTask
+├── IInteractableTarget.h    ← 可交互目标接口
+├── IInteractionInstigator.h ← 交互发起者接口
+├── InteractionOption.h      ← 交互选项
+├── InteractionQuery.h       ← 交互查询
+└── InteractionStatics.cpp   ← 交互工具函数
+```
+
+---
+
+## 🎵 十三、音频系统（Audio）
+
+**路径**：`Source/LyraGame/Audio/`
+
+### 关键类
+
+| 类名 | 职责 |
+|------|------|
+| `ULyraAudioMixEffectsSubsystem` | 音频混音效果子系统 |
+| `ULyraAudioSettings` | 音频设置 |
+
+---
+
+## 📊 十四、反馈系统（Feedback）
+
+**路径**：`Source/LyraGame/Feedback/`
+
+### 子目录结构
+```
+Feedback/
+├── ContextEffects/   ← 上下文效果（受击反馈、环境反馈）
+└── NumberPops/       ← 数字弹出（伤害数字、治疗数字）
+```
+
+---
+
+## 🎬 十五、回放系统（Replays）
+
+**路径**：`Source/LyraGame/Replays/`
+
+### 关键类
+
+| 类名 | 职责 |
+|------|------|
+| `ULyraReplaySubsystem` | 回放子系统，录制/播放 |
+| `UAsyncAction_QueryReplays` | 异步查询回放 |
+
+---
+
+## 🚀 十六、性能系统（Performance）
+
+**路径**：`Source/LyraGame/Performance/`
+
+### 关键类
+
+| 类名 | 职责 |
+|------|------|
+| `ULyraPerformanceStatSubsystem` | 性能统计子系统 |
+| `ULyraPerformanceSettings` | 性能设置 |
+| `FLyraPerformanceStatTypes` | 性能统计类型定义 |
+| `LyraMemoryDebugCommands.cpp` | 内存调试命令 |
+
+---
+
+## ⚙️ 十七、设置系统（Settings）
+
+**路径**：`Source/LyraGame/Settings/`
+
+### 子目录结构
+```
+Settings/
+├── CustomSettings/   ← 自定义设置项
+├── Screens/          ← 设置界面
+├── Widgets/          ← 设置 Widget
+├── LyraGameSettingRegistry.cpp      ← 设置注册表
+├── LyraGameSettingRegistry_Audio.cpp
+├── LyraGameSettingRegistry_Gamepad.cpp
+├── LyraGameSettingRegistry_Gameplay.cpp
+├── LyraGameSettingRegistry_MouseAndKeyboard.cpp
+├── LyraGameSettingRegistry_PerfStats.cpp
+├── LyraGameSettingRegistry_Video.cpp
+├── LyraSettingsLocal.cpp            ← 本地设置
+└── LyraSettingsShared.cpp           ← 共享设置
+```
+
+---
+
+## 🏷️ 十八、GameplayTags 定义
+
+**路径**：`Source/LyraGame/LyraGameplayTags.h/.cpp`
+
+### 核心 Tag 分类
+
+| 分类 | Tag 示例 | 用途 |
+|------|----------|------|
+| `Ability.ActivateFail.*` | `Ability.ActivateFail.IsDead` | 技能激活失败原因 |
+| `Ability.Behavior.*` | `Ability.Behavior.SurvivesDeath` | 技能行为标记 |
+| `InputTag.*` | `InputTag.Move`, `InputTag.Look.Mouse` | 输入标签 |
+| `InitState.*` | `InitState.Spawned`, `InitState.GameplayReady` | 初始化状态 |
+| `GameplayEvent.*` | `GameplayEvent.Death`, `GameplayEvent.Reset` | 游戏事件 |
+| `SetByCaller.*` | `SetByCaller.Damage`, `SetByCaller.Heal` | GE 参数传递 |
+| `Status.*` | `Status.Crouching`, `Status.Death.Dying` | 状态标记 |
+| `Movement.Mode.*` | `Movement.Mode.Walking`, `Movement.Mode.Falling` | 移动模式 |
+| `Cheat.*` | `Cheat.GodMode`, `Cheat.UnlimitedHealth` | 作弊标记 |
+
+---
+
+## 🔌 十九、插件系统（Plugins）
+
+**路径**：`Plugins/`
+
+### 内置插件（13个）
+- `AsyncMixin` — 异步混入
+- `CommonGame` — 通用游戏框架
+- `CommonLoadingScreen` — 通用加载界面
+- `CommonUser` — 通用用户系统
+- `GameSettings` — 游戏设置
+- `GameSubtitles` — 字幕系统
+- `LyraExampleContent` — 示例内容
+- `LyraExtTool` — Lyra 扩展工具
+- `ModularGameplayActors` — 模块化 Gameplay Actor
+- `PocketWorlds` — 口袋世界（快速加载小场景）
+- `UIExtension` — UI 扩展
+- `CommonUI` — CommonUI 框架集成
+- `GameplayMessageRouter` — 消息路由
+
+### GameFeature 插件（按需启用）
+- `ShooterCore` — 射击核心
+- `ShooterMaps` — 射击地图
+- `ShooterExplorer` — 探索模式
+- `TopDownArena` — 俯视角竞技场
+- `ShooterTests` — 射击测试
+
+---
+
+## 📐 二十、命名规范总结
+
+| 前缀/后缀 | 含义 | 示例 |
+|-----------|------|------|
+| `Lyra` | 项目前缀 | `LyraCharacter`, `LyraGameMode` |
+| `GA_` | GameplayAbility | `GA_Attack`, `LyraGameplayAbility_Jump` |
+| `GE_` | GameplayEffect | `GE_Damage`, `GE_Heal` |
+| `GC_` | GameplayCue | `GC_HitImpact` |
+| `U` | UObject 派生类 | `ULyraAbilitySet` |
+| `A` | AActor 派生类 | `ALyraCharacter` |
+| `F` | 结构体/非 UObject 类 | `FLyraTeamPublicInfo` |
+| `E` | 枚举 | `ECombatState` |
+| `I` | 接口 | `ILyraTeamAgentInterface` |
+| `b` | 布尔变量 | `bIsDead`, `bCanJump` |
+| `K2_` | 蓝图可覆写函数 | `K2_OnDeath` |
+| `OnRep_` | 网络回调 | `OnRep_Health` |
+| `FindXxx` | 静态查找函数 | `FindHealthComponent()` |
+
+---
+
+## 🔄 二十一、核心设计原则
+
+1. **数据驱动**：PawnData、ExperienceDefinition、AbilitySet 都是 DataAsset，策划配表即可改变游戏行为
+2. **组件化**：PawnExtensionComponent 协调各组件，功能拆分到独立 Component
+3. **Tag 驱动**：GameplayTag 贯穿状态、事件、条件、输入
+4. **模块化**：GameFeature 插件按需启用，Experience 动态组合
+5. **网络优先**：ASC 放 PlayerState、FFastArraySerializer 增量复制、ReplicationGraph 优化
+6. **Fragment 组合**：物品/装备用 Fragment 数组组合功能，避免继承爆炸
+
+---
+
+## 📚 文件路径速查表
+
+| 功能 | 路径 |
+|------|------|
+| 游戏模式 | `Source/LyraGame/GameModes/` |
+| 组队系统 | `Source/LyraGame/Teams/` |
+| GAS 技能 | `Source/LyraGame/AbilitySystem/` |
+| 输入系统 | `Source/LyraGame/Input/` |
+| 角色/Pawn | `Source/LyraGame/Character/` |
+| 玩家系统 | `Source/LyraGame/Player/` |
+| 武器系统 | `Source/LyraGame/Weapons/` |
+| 物品库存 | `Source/LyraGame/Inventory/` |
+| 装备系统 | `Source/LyraGame/Equipment/` |
+| UI 系统 | `Source/LyraGame/UI/` |
+| 系统层 | `Source/LyraGame/System/` |
+| 交互系统 | `Source/LyraGame/Interaction/` |
+| 音频系统 | `Source/LyraGame/Audio/` |
+| 反馈系统 | `Source/LyraGame/Feedback/` |
+| 回放系统 | `Source/LyraGame/Replays/` |
+| 性能系统 | `Source/LyraGame/Performance/` |
+| 设置系统 | `Source/LyraGame/Settings/` |
+| GameplayTags | `Source/LyraGame/LyraGameplayTags.h` |
+| 插件 | `Plugins/` |
+
+---
+
+*本文档基于 LyraStarterGame 源码生成，作为学习参考。*
